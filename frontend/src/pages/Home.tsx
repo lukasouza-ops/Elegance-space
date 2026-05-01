@@ -1,33 +1,70 @@
-﻿import Navbar from '../components/common/Navbar';
+﻿import { useState, useEffect } from 'react';
+import Navbar from '../components/common/Navbar';
 import Button from '../components/common/Button';
 import ProfessionalCard from '../components/common/ProfessionalCard';
 import Footer from '../components/common/Footer';
+
+interface Service {
+  id: number;
+  name: string;
+  duration: string;
+  price: string;
+}
 
 interface Professional {
   id: number;
   name: string;
   specialty: string;
+  status: 'active' | 'inactive';
   image: string;
+  services: Service[];
 }
 
-const professionals: Professional[] = [
+const STORAGE_KEY = 'elegance_space_professionals';
+
+const defaultProfessionals: Professional[] = [
   {
     id: 1,
     name: 'Carla Mendes',
     specialty: 'Cabeleireira',
+    status: 'active',
     image: 'https://images.unsplash.com/photo-1594744803329-e58b31de8bf5?w=400&h=500&fit=crop',
+    services: [
+      { id: 1, name: 'Corte Feminino', duration: '60 min', price: 'R$ 80,00' },
+      { id: 2, name: 'Tintura', duration: '120 min', price: 'R$ 150,00' },
+      { id: 3, name: 'Mechas', duration: '180 min', price: 'R$ 250,00' },
+    ],
   },
   {
     id: 2,
     name: 'Juliana Silva',
     specialty: 'Manicure',
+    status: 'active',
     image: 'https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=400&h=500&fit=crop',
+    services: [
+      { id: 4, name: 'Manicure', duration: '45 min', price: 'R$ 45,00' },
+      { id: 5, name: 'Pedicure', duration: '60 min', price: 'R$ 55,00' },
+      { id: 6, name: 'Unhas de Gel', duration: '90 min', price: 'R$ 120,00' },
+    ],
   },
   {
     id: 3,
     name: 'Patrícia Oliveira',
     specialty: 'Esteticista',
+    status: 'active',
     image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&h=500&fit=crop',
+    services: [
+      { id: 7, name: 'Limpeza de Pele', duration: '60 min', price: 'R$ 120,00' },
+      { id: 8, name: 'Massagem Relaxante', duration: '60 min', price: 'R$ 100,00' },
+    ],
+  },
+  {
+    id: 4,
+    name: 'Ana Paula Santos',
+    specialty: 'Maquiadora',
+    status: 'inactive',
+    image: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&h=500&fit=crop',
+    services: [],
   },
 ];
 
@@ -39,6 +76,23 @@ const services = [
 ];
 
 const Home = () => {
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
+
+  useEffect(() => {
+    // Carregar do localStorage primeiro, senão usar dados padrão
+    const savedData = localStorage.getItem(STORAGE_KEY);
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        // Filtrar apenas profissionais ativas para exibir na Home
+        setProfessionals(parsed.filter((p: Professional) => p.status === 'active'));
+      } catch {
+        setProfessionals(defaultProfessionals.filter(p => p.status === 'active'));
+      }
+    } else {
+      setProfessionals(defaultProfessionals.filter(p => p.status === 'active'));
+    }
+  }, []);
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
     if (element) {

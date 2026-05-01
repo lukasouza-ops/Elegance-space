@@ -11,12 +11,16 @@ interface ProfessionalCardProps {
 }
 
 const ProfessionalCard = ({ professional, onViewSchedule }: ProfessionalCardProps) => {
+  // Imagem placeholder padrão se não houver imagem
+  const defaultImage = 'https://images.unsplash.com/photo-1594744803329-e58b31de8bf5?w=400&h=500&fit=crop';
+  const imageUrl = professional.image || defaultImage;
+
   return (
     <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden group">
       {/* Imagem */}
       <div className="relative h-64 overflow-hidden">
         <img
-          src={professional.image}
+          src={imageUrl}
           alt={professional.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
