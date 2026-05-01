@@ -3,6 +3,7 @@ import Navbar from '../components/common/Navbar';
 import Button from '../components/common/Button';
 import ProfessionalCard from '../components/common/ProfessionalCard';
 import Footer from '../components/common/Footer';
+import BookingModal from '../components/booking/BookingModal';
 
 interface Service {
   id: number;
@@ -77,6 +78,8 @@ const services = [
 
 const Home = () => {
   const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [bookingProfessionalId, setBookingProfessionalId] = useState<number | null>(null);
 
   useEffect(() => {
     // Carregar do localStorage primeiro, senão usar dados padrão
@@ -93,7 +96,14 @@ const Home = () => {
       setProfessionals(defaultProfessionals.filter(p => p.status === 'active'));
     }
   }, []);
-  const scrollToSection = (sectionId: string) => {
+
+  const handleNavigate = (sectionId: string) => {
+    if (sectionId === 'booking') {
+      setBookingProfessionalId(null);
+      setBookingOpen(true);
+      return;
+    }
+
     const element = document.getElementById(sectionId);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' });
@@ -101,13 +111,18 @@ const Home = () => {
   };
 
   const handleViewSchedule = (professionalId: number) => {
-    console.log('Ver agenda do profissional:', professionalId);
-    alert(`Em breve: Agenda do profissional #${professionalId}`);
+    setBookingProfessionalId(professionalId);
+    setBookingOpen(true);
+  };
+
+  const closeBooking = () => {
+    setBookingOpen(false);
+    setBookingProfessionalId(null);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-pink-50 via-white to-pink-50">
-      <Navbar onNavigate={scrollToSection} />
+      <Navbar onNavigate={handleNavigate} />
 
       {/* Hero Section */}
       <section id="home" className="pt-24 pb-16 md:pt-32 md:pb-24 px-4">
@@ -125,7 +140,7 @@ const Home = () => {
               Profissionais especializadas prontas para transformar seu visual.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" onClick={() => scrollToSection('booking')}>
+              <Button size="lg" onClick={() => setBookingOpen(true)}>
                 Agendar agora
               </Button>
               <Button variant="outline" size="lg" onClick={() => scrollToSection('professionals')}>
@@ -211,7 +226,7 @@ const Home = () => {
             variant="outline"
             size="lg"
             className="bg-white text-pink-500 hover:bg-pink-50 border-white"
-            onClick={() => alert('Em breve: sistema de agendamento!')}
+            onClick={() => setBookingOpen(true)}
           >
             Agendar horário
           </Button>
@@ -219,6 +234,12 @@ const Home = () => {
       </section>
 
       <Footer />
+      <BookingModal
+        isOpen={bookingOpen}
+        professionals={professionals}
+        initialProfessionalId={bookingProfessionalId}
+        onClose={closeBooking}
+      />
     </div>
   );
 };
