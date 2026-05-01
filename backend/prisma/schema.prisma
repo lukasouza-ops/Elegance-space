@@ -1,0 +1,111 @@
+// Prisma schema for Elegance Space
+// Run: npx prisma generate && npx prisma db push
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Professional model - Beauty professionals
+model Professional {
+  id          String   @id @default(uuid())
+  name        String
+  email       String?  @unique
+  phone       String?
+  avatar      String?  // URL to profile image
+  bio         String?  // Short biography
+  isActive    Boolean  @default(true)
+  
+  // Work schedule configuration
+  workStartTime String @default("09:00") // HH:mm format
+  workEndTime   String @default("18:00") // HH:mm format
+  workDays      Int[]  @default([1,2,3,4,5]) // 0=Sun, 1=Mon, ..., 6=Sat
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  services    Service[]
+  appointments Appointment[]
+  blockedTimes BlockedTime[]
+}
+
+// Service model - Services offered by professionals
+model Service {
+  id             String   @id @default(uuid())
+  name           String
+  description    String?
+  duration       Int      // Duration in minutes
+  price          Float
+    
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  appointments   Appointment[]
+}
+
+// BlockedTime model - Blocked time slots (lunch, break, off days)
+model BlockedTime {
+  id             String   @id @default(uuid())
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  
+  date           DateTime // Specific date or recurring
+  startTime      String   // HH:mm format
+  endTime        String   // HH:mm format
+  reason         String?  // "lunch", "break", "off", "unavailable"
+  isRecurring    Boolean  @default(false)
+  
+  createdAt      DateTime @default(now())
+  
+  @@index([professionalId, date])
+}
+
+// Appointment model - Client appointments
+model Appointment {
+  id             String   @id @default(uuid())
+  
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  
+  serviceId      String
+  service        Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  clientName     String
+  clientPhone    String?
+  clientEmail    String?
+  
+  date           DateTime
+  startTime      String   // HH:mm format
+  endTime        String   // Calculated from service duration
+  
+  status         AppointmentStatus @default(SCHEDULED)
+  notes          String?
+  
+  // For future WhatsApp integration
+  whatsappNotification Boolean @default(false)
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([professionalId, date])
+  @@index([date])
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
