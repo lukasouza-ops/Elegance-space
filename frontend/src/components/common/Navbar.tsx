@@ -1,8 +1,13 @@
+import { Link, useLocation } from 'react-router-dom';
+
 interface NavbarProps {
   onNavigate?: (section: string) => void;
 }
 
 const Navbar = ({ onNavigate }: NavbarProps) => {
+  const location = useLocation();
+  const isAdminPage = location.pathname === '/admin';
+
   const navItems = [
     { label: 'Início', section: 'home' },
     { label: 'Profissionais', section: 'professionals' },
@@ -10,28 +15,44 @@ const Navbar = ({ onNavigate }: NavbarProps) => {
     { label: 'Agendamento', section: 'booking' },
   ];
 
+  const handleNavClick = (section: string) => {
+    if (location.pathname === '/') {
+      onNavigate?.(section);
+    }
+  };
+
+  if (isAdminPage) {
+    return null;
+  }
+
   return (
     <nav className="fixed top-0 left-0 right-0 bg-white/90 backdrop-blur-md shadow-sm z-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <div className="flex-shrink-0">
-            <h1 className="text-2xl font-serif font-bold text-pink-600">
+            <Link to="/" className="text-2xl font-serif font-bold text-pink-600">
               Elegance Space
-            </h1>
+            </Link>
           </div>
 
           {/* Menu Desktop */}
-          <div className="hidden md:flex space-x-8">
+          <div className="hidden md:flex items-center space-x-8">
             {navItems.map((item) => (
               <button
                 key={item.section}
-                onClick={() => onNavigate?.(item.section)}
+                onClick={() => handleNavClick(item.section)}
                 className="text-gray-600 hover:text-pink-500 transition-colors duration-200 font-medium text-sm uppercase tracking-wide"
               >
                 {item.label}
               </button>
             ))}
+            <Link
+              to="/admin"
+              className="text-gray-600 hover:text-pink-500 transition-colors duration-200 font-medium text-sm uppercase tracking-wide"
+            >
+              Admin
+            </Link>
           </div>
 
           {/* Botão Agendar - Desktop */}
