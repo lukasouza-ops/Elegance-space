@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MonthlySchedule, ScheduleBlock, WeeklyRule, WeekDay } from './types';
-import ScheduleBlockForm from './ScheduleBlockForm';
-import SchedulePreview from './SchedulePreview';
+import { MonthlySchedule, WeeklyRule, WeekDay } from './types';
 
 const weekDayLabels: Record<WeekDay, string> = {
   monday: 'Segunda-feira',
@@ -31,7 +29,14 @@ const createMonthlySchedule = (monthYear: string): MonthlySchedule => ({
   monthYear,
   weeklyRules: createDefaultWeeklyRules(),
   blocks: [],
+  released: false,
 });
+
+const isScheduleConfigured = (schedule: MonthlySchedule) =>
+  Object.values(schedule.weeklyRules).some((rule) => rule.enabled);
+
+const isScheduleReleased = (schedule: MonthlySchedule) =>
+  schedule.released ?? isScheduleConfigured(schedule);
 
 const buildMonthLabel = (monthYear: string) => {
   const [year, month] = monthYear.split('-');
@@ -66,6 +71,13 @@ const MonthlyScheduleEditor = ({
     monthlySchedules.find((item) => item.monthYear === selectedMonth) ||
     createMonthlySchedule(selectedMonth);
 
+  const selectedScheduleReleased = isScheduleReleased(selectedSchedule);
+  const selectedScheduleConfigured = isScheduleConfigured(selectedSchedule);
+  const releasedMonths = monthlySchedules
+    .filter(isScheduleReleased)
+    .sort((a, b) => a.monthYear.localeCompare(b.monthYear))
+    .map((item) => buildMonthLabel(item.monthYear));
+
   const handleMonthChange = (value: string) => {
     setSelectedMonth(value);
     if (!monthlySchedules.some((item) => item.monthYear === value)) {
@@ -93,55 +105,39 @@ const MonthlyScheduleEditor = ({
     });
   };
 
-  const handleAddBlock = (block: ScheduleBlock) => {
-    updateSelectedSchedule({
-      ...selectedSchedule,
-      blocks: [...selectedSchedule.blocks, block],
-    });
-  };
-
-  const handleRemoveBlock = (id: string) => {
-    updateSelectedSchedule({
-      ...selectedSchedule,
-      blocks: selectedSchedule.blocks.filter((block) => block.id !== id),
-    });
-  };
-
-  const monthOptions = monthlySchedules
-    .map((item) => item.monthYear)
-    .sort()
-    .filter((value, index, list) => list.indexOf(value) === index);
-
   return (
     <div className="space-y-6">
-      <div className="grid gap-3 md:grid-cols-2 items-end">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Mês/Ano</label>
-          <input
-            type="month"
-            value={selectedMonth}
-            onChange={(e) => handleMonthChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Agendas existentes</label>
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-          >
-            {monthOptions.map((month) => (
-              <option key={month} value={month}>
-                {buildMonthLabel(month)}
-              </option>
-            ))}
-          </select>
+      <div className="bg-white border border-gray-200 rounded-2xl p-6">
+        <div className="grid gap-3 md:grid-cols-2 items-end">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Mês/Ano</label>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => handleMonthChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+            />
+          </div>
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-sm font-semibold text-gray-700 mb-2">Meses liberados</p>
+            {releasedMonths.length > 0 ? (
+              <p className="text-sm text-gray-600">{releasedMonths.join(', ')}</p>
+            ) : (
+              <p className="text-sm text-gray-500">Nenhum mês liberado ainda.</p>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-2xl p-4">
-        <h4 className="text-sm font-semibold text-gray-800 mb-4">Regra base por dia da semana</h4>
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-sm font-semibold text-gray-800">Configuração de dias e horários</h4>
+          {!selectedScheduleConfigured && (
+            <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold uppercase text-yellow-700">
+              Sem configuração
+            </span>
+          )}
+        </div>
         <div className="space-y-3">
           {weekDays.map((day) => {
             const rule = selectedSchedule.weeklyRules[day];
@@ -177,41 +173,32 @@ const MonthlyScheduleEditor = ({
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-6">
-          <div className="bg-white border border-gray-200 rounded-2xl p-4">
-            <h4 className="text-sm font-semibold text-gray-800 mb-4">Bloqueios específicos</h4>
-            <ScheduleBlockForm monthYear={selectedMonth} onAdd={handleAddBlock} />
-            {selectedSchedule.blocks.length > 0 && (
-              <div className="mt-4 space-y-3">
-                {selectedSchedule.blocks.map((block) => (
-                  <div key={block.id} className="rounded-2xl border border-gray-200 p-3 bg-gray-50 flex justify-between items-center gap-3">
-                    <div>
-                      <div className="text-sm font-medium text-gray-800">
-                        {block.date} • {block.type === 'full-day' ? 'Dia inteiro' : `${block.startTime} às ${block.endTime}`}
-                      </div>
-                      {block.reason && <p className="text-xs text-gray-500 mt-1">{block.reason}</p>}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveBlock(block.id)}
-                      className="text-sm text-red-600 hover:text-red-800"
-                    >
-                      Excluir
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <SchedulePreview schedule={selectedSchedule} />
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-2xl p-4">
-          <h4 className="text-sm font-semibold text-gray-800 mb-3">Resumo do mês</h4>
-          <p className="text-sm text-gray-600">Está selecionado o mês de {buildMonthLabel(selectedMonth)}.</p>
-          <p className="text-sm text-gray-600 mt-2">Use as regras semanais para aplicar a disponibilidade ao mês e adicione bloqueios específicos sempre que precisar interromper um dia ou horário.</p>
+      <div className="bg-white border border-gray-200 rounded-2xl p-6">
+        <h4 className="text-sm font-semibold text-gray-800 mb-4">Liberação do mês</h4>
+        <div className="space-y-4">
+          <label className="flex items-center gap-3 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={selectedScheduleReleased}
+              disabled={!selectedScheduleConfigured}
+              onChange={(e) => updateSelectedSchedule({ ...selectedSchedule, released: e.target.checked })}
+              className="h-4 w-4 text-pink-500 rounded"
+            />
+            Liberar este mês para agendamentos
+          </label>
+          {!selectedScheduleConfigured ? (
+            <div className="rounded-2xl border border-yellow-100 bg-yellow-50 p-4 text-sm text-yellow-700">
+              Configure os dias e horários antes de liberar este mês.
+            </div>
+          ) : selectedScheduleReleased ? (
+            <div className="rounded-2xl border border-green-100 bg-green-50 p-4 text-sm text-green-700">
+              Mês configurado e liberado para agendamentos.
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-pink-100 bg-pink-50 p-4 text-sm text-pink-700">
+              Mês configurado, mas ainda não liberado para clientes.
+            </div>
+          )}
         </div>
       </div>
     </div>

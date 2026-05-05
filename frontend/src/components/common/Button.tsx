@@ -4,6 +4,7 @@ interface ButtonProps {
   size?: 'sm' | 'md' | 'lg';
   onClick?: () => void;
   type?: 'button' | 'submit' | 'reset';
+  form?: string;
   className?: string;
   disabled?: boolean;
 }
@@ -14,6 +15,7 @@ const Button = ({
   size = 'md',
   onClick,
   type = 'button',
+  form,
   className = '',
   disabled = false,
 }: ButtonProps) => {
@@ -36,6 +38,7 @@ const Button = ({
   return (
     <button
       type={type}
+      form={form}
       onClick={onClick}
       disabled={disabled}
       className={`

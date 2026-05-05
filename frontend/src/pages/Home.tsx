@@ -80,6 +80,7 @@ const Home = () => {
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [bookingProfessionalId, setBookingProfessionalId] = useState<number | null>(null);
+  const [bookingToast, setBookingToast] = useState('');
 
   useEffect(() => {
     // Carregar do localStorage primeiro, senão usar dados padrão
@@ -120,9 +121,44 @@ const Home = () => {
     setBookingProfessionalId(null);
   };
 
+  const handleBookingSuccess = () => {
+    setBookingToast('Agendamento confirmado com sucesso!');
+  };
+
+  const clearToast = () => {
+    setBookingToast('');
+  };
+
+  useEffect(() => {
+    if (!bookingToast) return;
+    const timeout = window.setTimeout(() => {
+      setBookingToast('');
+    }, 4000);
+    return () => window.clearTimeout(timeout);
+  }, [bookingToast]);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-pink-50 via-white to-pink-50">
       <Navbar onNavigate={handleNavigate} />
+
+      {bookingToast && (
+        <div className="fixed right-4 top-24 z-50 w-full max-w-xs rounded-3xl border border-pink-200 bg-pink-50 p-4 shadow-xl shadow-pink-200/30">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-pink-500 text-white">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-pink-700">Agendamento confirmado</p>
+              <p className="mt-1 text-sm text-pink-800">{bookingToast}</p>
+            </div>
+            <button onClick={clearToast} className="text-pink-600 hover:text-pink-800 text-sm font-medium">
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Hero Section */}
       <section id="home" className="pt-24 pb-16 md:pt-32 md:pb-24 px-4">
@@ -239,6 +275,7 @@ const Home = () => {
         professionals={professionals}
         initialProfessionalId={bookingProfessionalId}
         onClose={closeBooking}
+        onSuccess={handleBookingSuccess}
       />
     </div>
   );

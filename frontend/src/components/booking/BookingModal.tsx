@@ -1,6 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Button from '../common/Button';
-import SchedulePreview from '../schedule/SchedulePreview';
 import { MonthlySchedule } from '../schedule/types';
 
 interface Service {
@@ -47,6 +46,8 @@ interface Appointment {
   serviceName: string;
   date: string;
   time: string;
+  duration?: string;
+  createdAt?: string;
 }
 
 interface BookingModalProps {
@@ -54,6 +55,7 @@ interface BookingModalProps {
   professionals: Professional[];
   initialProfessionalId?: number | null;
   onClose: () => void;
+  onSuccess?: (appointment: Appointment) => void;
 }
 
 const APPOINTMENT_STORAGE_KEY = 'elegance_space_appointments';
@@ -135,6 +137,9 @@ const dayLabels: Record<WeekDay, string> = {
   sunday: 'Dom',
 };
 
+const isMonthlyScheduleReleased = (schedule: MonthlySchedule) =>
+  schedule.released ?? Object.values(schedule.weeklyRules).some((rule) => rule.enabled);
+
 const getAvailableDates = (schedule: MonthlySchedule) => {
   const dates = getMonthDates(schedule.monthYear);
   return dates.map((date) => {
@@ -205,6 +210,7 @@ const BookingModal = ({
   professionals,
   initialProfessionalId,
   onClose,
+  onSuccess,
 }: BookingModalProps) => {
   const [clientName, setClientName] = useState('');
   const [phone, setPhone] = useState('');
@@ -213,7 +219,6 @@ const BookingModal = ({
   const [monthYear, setMonthYear] = useState(getCurrentMonthYear());
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
-  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
   const selectedProfessional = useMemo(
@@ -224,7 +229,7 @@ const BookingModal = ({
   const effectiveSchedules = useMemo(() => {
     if (!selectedProfessional) return [];
     if (selectedProfessional.monthlySchedules?.length) {
-      return selectedProfessional.monthlySchedules;
+      return selectedProfessional.monthlySchedules.filter(isMonthlyScheduleReleased);
     }
     return [buildScheduleFromWork(selectedProfessional.schedule, getCurrentMonthYear())];
   }, [selectedProfessional]);
@@ -258,7 +263,6 @@ const BookingModal = ({
     setSelectedTime('');
     setClientName('');
     setPhone('');
-    setMessage('');
     setError('');
   }, [isOpen, initialProfessionalId, selectedProfessional, effectiveSchedules]);
 
@@ -281,14 +285,12 @@ const BookingModal = ({
     setMonthYear(scheduleMonth);
     setSelectedDate('');
     setSelectedTime('');
-    setMessage('');
     setError('');
   };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     setError('');
-    setMessage('');
 
     if (!clientName.trim() || !phone.trim() || !selectedProfessional || !selectedService || !selectedDate || !selectedTime) {
       setError('Preencha todos os campos para continuar.');
@@ -318,16 +320,19 @@ const BookingModal = ({
       serviceName: selectedService.name,
       date: selectedDate,
       time: selectedTime,
+      duration: selectedService.duration,
+      createdAt: new Date().toISOString(),
     };
 
     const updatedAppointments = [...appointments, newBooking];
     saveAppointments(updatedAppointments);
-    setMessage('Agendamento confirmado com sucesso!');
     setError('');
     setClientName('');
     setPhone('');
     setSelectedDate('');
     setSelectedTime('');
+    onSuccess?.(newBooking);
+    onClose();
   };
 
   const availableCount = availableDates.filter((item) => item.available).length;
@@ -355,9 +360,8 @@ const BookingModal = ({
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr] lg:gap-8">
-            <div className="space-y-6">
-              <form id="booking-form" onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-6">
+            <form id="booking-form" onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-3xl border border-gray-200 bg-white p-5">
                   <h3 className="text-sm font-semibold text-gray-900 mb-4">Dados do cliente</h3>
@@ -424,24 +428,7 @@ const BookingModal = ({
 
               <section className="rounded-3xl border border-gray-200 bg-white p-5">
                 <h3 className="text-sm font-semibold text-gray-900 mb-4">Escolha data e horário</h3>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-gray-700">Mês da agenda</span>
-                    <select
-                      value={monthYear}
-                      onChange={(event) => {
-                        setMonthYear(event.target.value);
-                        setSelectedDate('');
-                        setSelectedTime('');
-                      }}
-                      className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
-                    >
-                      {scheduleOptions.map((month) => (
-                        <option key={month} value={month}>{month}</option>
-                      ))}
-                    </select>
-                  </label>
-
+                <div className="space-y-4">
                   <label className="space-y-2">
                     <span className="text-sm font-medium text-gray-700">Data</span>
                     <select
@@ -486,7 +473,6 @@ const BookingModal = ({
                 </label>
 
                 {error && <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}
-                {message && <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{message}</div>}
               </section>
 
               <section className="rounded-3xl border border-pink-100 bg-pink-50 p-5">
@@ -494,40 +480,12 @@ const BookingModal = ({
                 <div className="mt-3 space-y-2 text-sm text-gray-700">
                   <p>Profissional: {selectedProfessional?.name}</p>
                   <p>Serviço: {selectedService?.name || 'Selecione um serviço'}</p>
-                  <p>Mês: {selectedSchedule?.monthYear}</p>
                   <p>{selectedDate ? `Data escolhida: ${selectedDate}` : 'Selecione uma data disponível'}</p>
                   <p>{selectedTime ? `Horário escolhido: ${selectedTime}` : 'Selecione um horário disponível'}</p>
                 </div>
               </section>
             </form>
-          </div>
-
-            <aside className="space-y-6">
-              <div className="rounded-3xl border border-gray-200 bg-gray-50 p-5 flex flex-col h-full">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Disponibilidade mensal</h3>
-                  <p className="mt-2 text-sm text-gray-600">Use a visualização para conferir dias e bloqueios configurados no Admin.</p>
-                </div>
-                <div className="mt-4 flex-1 min-h-[300px] rounded-3xl border border-gray-200 bg-white p-4">
-                  {selectedSchedule ? (
-                    <SchedulePreview schedule={selectedSchedule} />
-                  ) : (
-                    <div className="rounded-3xl bg-white p-4 text-sm text-gray-600">Não há agenda mensal disponível para essa profissional.</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-gray-200 bg-white p-5">
-                <h3 className="text-lg font-semibold text-gray-900">Como funciona</h3>
-                <ul className="mt-3 space-y-2 text-sm text-gray-600">
-                  <li>1. Escolha a profissional e o serviço.</li>
-                  <li>2. Selecione um dia disponível conforme a agenda mensal.</li>
-                  <li>3. Escolha um horário que não esteja bloqueado ou reservado.</li>
-                  <li>4. Confirme e receba a mensagem de sucesso.</li>
-                </ul>
-              </div>
-            </aside>
-          </div>
+            </div>
         </div>
 
         <div className="border-t border-gray-200 bg-white px-6 py-4 flex-shrink-0">

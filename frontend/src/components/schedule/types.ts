@@ -19,4 +19,5 @@ export interface MonthlySchedule {
   monthYear: string;
   weeklyRules: Record<WeekDay, WeeklyRule>;
   blocks: ScheduleBlock[];
+  released?: boolean;
 }
