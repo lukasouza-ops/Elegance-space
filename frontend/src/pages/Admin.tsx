@@ -421,7 +421,7 @@ const ProfessionalModal = ({
                         <div key={service.id} className="rounded-2xl border border-gray-200 bg-white p-4">
                           <div className="flex items-center justify-between gap-3">
                             <p className="font-medium text-gray-800">{service.name}</p>
-                            <span className="text-xs text-gray-500">{service.duration}</span>
+                            <span className="text-xs text-gray-500">{service.duration} min</span>
                           </div>
                           <p className="text-sm text-gray-500 mt-1">{service.price}</p>
                         </div>
@@ -571,10 +571,12 @@ const ServiceModal = ({
               Duração
             </label>
             <input
-              type="text"
+              type="number"
+              min="1"
+step="1"
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
-              placeholder="Ex: 60 min"
+              placeholder="60"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
               required
             />
@@ -684,7 +686,20 @@ const Admin = () => {
       setAppointments([]);
     }
   };
+const handleDeleteAppointment = (appointmentId: string) => {
+  if (!confirm('Tem certeza que deseja excluir este agendamento?')) return;
 
+  const updatedAppointments = appointments.filter(
+    (appointment) => appointment.id !== appointmentId
+  );
+
+  setAppointments(updatedAppointments);
+
+  localStorage.setItem(
+    APPOINTMENT_STORAGE_KEY,
+    JSON.stringify(updatedAppointments)
+  );
+};
   // Funções de filtro
   const clearProfessionalFilters = () => {
     setProfessionalDateFilter('');
@@ -853,6 +868,7 @@ const Admin = () => {
   };
 
   const handleSaveService = (data: { name: string; duration: string; price: string }) => {
+    
     if (!selectedProfessional) return;
 
     let updatedProfessionals: Professional[];
@@ -1075,7 +1091,7 @@ const Admin = () => {
                                 {service.name}
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-600">
-                                {service.duration}
+                                {service.duration} min
                               </td>
                               <td className="px-4 py-3 text-sm font-medium text-gray-900">
                                 {service.price}
@@ -1219,7 +1235,9 @@ const Admin = () => {
                                 </div>
                                 <div>
                                   <p className="text-sm text-gray-500">Serviço</p>
-                                  <p className="text-sm font-medium text-gray-800">{appointment.serviceName}</p>
+                                  <p className="text-sm font-medium text-gray-800">
+  {appointment.serviceName} • {getServiceDuration(appointment)} min
+</p>
                                 </div>
                                 <div>
                                   <p className="text-sm text-gray-500">Data / Horário</p>
@@ -1370,12 +1388,13 @@ const Admin = () => {
                       <th className="px-4 py-3 font-medium text-gray-500 uppercase">Horário</th>
                       <th className="px-4 py-3 font-medium text-gray-500 uppercase">Duração</th>
                       <th className="px-4 py-3 font-medium text-gray-500 uppercase">Criado em</th>
+                      <th className="px-4 py-3 font-medium text-gray-500 uppercase">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {getFilteredAppointments().length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-500">
+                        <td colSpan={9} className="px-4 py-6 text-center text-sm text-gray-500">
                           Nenhum agendamento encontrado com os filtros aplicados.
                         </td>
                       </tr>
@@ -1390,6 +1409,15 @@ const Admin = () => {
                           <td className="px-4 py-3">{appointment.time}</td>
                           <td className="px-4 py-3">{getServiceDuration(appointment)}</td>
                           <td className="px-4 py-3">{formatCreatedAt(appointment.createdAt)}</td>
+                          <td className="px-4 py-3">
+  <button
+    type="button"
+    onClick={() => handleDeleteAppointment(appointment.id)}
+    className="text-sm font-medium text-red-600 hover:text-red-800"
+  >
+    Excluir
+  </button>
+</td>
                         </tr>
                       ))
                     )}

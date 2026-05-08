@@ -189,15 +189,25 @@ const getAvailableTimeSlots = (
   const lastStart = dayEnd - durationMinutes;
   if (lastStart < dayStart) return [];
 
-  const existingAppointments = appointments
-    .filter((item) => item.professionalId === professionalId && item.date === selectedDate)
-    .map((item) => toMinutes(item.time));
+const existingAppointments = appointments
+  .filter((item) => item.professionalId === professionalId && item.date === selectedDate)
+  .map((item) => {
+    const start = toMinutes(item.time);
+    const duration = parseDurationMinutes(item.duration ?? '60');
+
+    return {
+      start,
+      end: start + duration,
+    };
+  });
 
   const slots: string[] = [];
   for (let current = dayStart; current <= lastStart; current += 30) {
     const slotEnd = current + durationMinutes;
     const isBlocked = blockedRanges.some((block) => rangesOverlap(current, slotEnd, block.start, block.end));
-    const hasConflict = existingAppointments.includes(current);
+   const hasConflict = existingAppointments.some((appointment) =>
+  rangesOverlap(current, slotEnd, appointment.start, appointment.end)
+);
     if (isBlocked || hasConflict) continue;
     slots.push(fromMinutes(current));
   }
@@ -418,7 +428,7 @@ const BookingModal = ({
                     >
                       {selectedProfessional?.services.map((service) => (
                         <option key={service.id} value={service.id}>
-                          {service.name} • {service.duration}
+                          {service.name} • {service.duration} min
                         </option>
                       ))}
                     </select>
