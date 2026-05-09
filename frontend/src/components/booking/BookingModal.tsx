@@ -224,6 +224,23 @@ const BookingModal = ({
 }: BookingModalProps) => {
   const [clientName, setClientName] = useState('');
   const [phone, setPhone] = useState('');
+  const formatPhone = (value: string) => {
+  const numbers = value.replace(/\D/g, '').slice(0, 11);
+
+  if (numbers.length <= 2) {
+    return numbers;
+  }
+
+  if (numbers.length <= 3) {
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+  }
+
+  if (numbers.length <= 7) {
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 3)} ${numbers.slice(3)}`;
+  }
+
+  return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 3)} ${numbers.slice(3, 7)}-${numbers.slice(7, 11)}`;
+};
   const [professionalId, setProfessionalId] = useState<number>(initialProfessionalId ?? professionals[0]?.id ?? 0);
   const [serviceId, setServiceId] = useState<number>(professionals[0]?.services[0]?.id ?? 0);
   const [monthYear, setMonthYear] = useState(getCurrentMonthYear());
@@ -391,7 +408,7 @@ const BookingModal = ({
                     <input
                       type="tel"
                       value={phone}
-                      onChange={(event) => setPhone(event.target.value)}
+                      onChange={(event) => setPhone(formatPhone(event.target.value))}
                       className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
                       placeholder="(XX) XXXXX-XXXX"
                       required
