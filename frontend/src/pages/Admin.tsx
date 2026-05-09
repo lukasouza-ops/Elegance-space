@@ -1,5 +1,4 @@
 ﻿import { useState, useEffect } from 'react';
-import MonthlyScheduleEditor from '../components/schedule/MonthlyScheduleEditor';
 import ScheduleBlockForm from '../components/schedule/ScheduleBlockForm';
 import { MonthlySchedule, ScheduleBlock, WeeklyRule, WeekDay } from '../components/schedule/types';
 
@@ -9,17 +8,18 @@ import { MonthlySchedule, ScheduleBlock, WeeklyRule, WeekDay } from '../componen
 
 const STORAGE_KEY = 'elegance_space_professionals';
 const APPOINTMENT_STORAGE_KEY = 'elegance_space_appointments';
+const SITE_CONFIG_STORAGE_KEY = 'elegance_space_site_config';
 
 const getCurrentMonthYear = () => new Date().toISOString().slice(0, 7);
 
 const createDefaultWeeklyRules = (): Record<WeekDay, WeeklyRule> => ({
-  monday: { enabled: false, startTime: '08:00', endTime: '18:00' },
-  tuesday: { enabled: false, startTime: '08:00', endTime: '18:00' },
-  wednesday: { enabled: false, startTime: '08:00', endTime: '18:00' },
-  thursday: { enabled: false, startTime: '08:00', endTime: '18:00' },
-  friday: { enabled: false, startTime: '08:00', endTime: '18:00' },
-  saturday: { enabled: false, startTime: '09:00', endTime: '14:00' },
-  sunday: { enabled: false, startTime: '09:00', endTime: '14:00' },
+  monday: { enabled: false, startTime: '08:00', endTime: '18:00', intervalMinutes: 30, hasLunchBreak: false, lunchStartTime: '12:00', lunchEndTime: '13:00' },
+  tuesday: { enabled: false, startTime: '08:00', endTime: '18:00', intervalMinutes: 30, hasLunchBreak: false, lunchStartTime: '12:00', lunchEndTime: '13:00' },
+  wednesday: { enabled: false, startTime: '08:00', endTime: '18:00', intervalMinutes: 30, hasLunchBreak: false, lunchStartTime: '12:00', lunchEndTime: '13:00' },
+  thursday: { enabled: false, startTime: '08:00', endTime: '18:00', intervalMinutes: 30, hasLunchBreak: false, lunchStartTime: '12:00', lunchEndTime: '13:00' },
+  friday: { enabled: false, startTime: '08:00', endTime: '18:00', intervalMinutes: 30, hasLunchBreak: false, lunchStartTime: '12:00', lunchEndTime: '13:00' },
+  saturday: { enabled: false, startTime: '09:00', endTime: '14:00', intervalMinutes: 30, hasLunchBreak: false, lunchStartTime: '12:00', lunchEndTime: '13:00' },
+  sunday: { enabled: false, startTime: '09:00', endTime: '14:00', intervalMinutes: 30, hasLunchBreak: false, lunchStartTime: '12:00', lunchEndTime: '13:00' },
 });
 
 const createMonthlySchedule = (monthYear: string): MonthlySchedule => ({
@@ -44,6 +44,27 @@ interface DaySchedule {
   enabled: boolean;
   startTime: string;
   endTime: string;
+  intervalMinutes?: 30 | 60;
+  hasLunchBreak?: boolean;
+  lunchStartTime?: string;
+  lunchEndTime?: string;
+}
+
+interface SiteService {
+  id: number;
+  name: string;
+  description: string;
+}
+
+interface SiteConfig {
+  siteName: string;
+  footerDescription: string;
+  contactEmail: string;
+  contactPhone: string;
+  servicesBadge: string;
+  servicesTitle: string;
+  servicesSubtitle: string;
+  services: SiteService[];
 }
 
 interface WorkSchedule {
@@ -56,6 +77,12 @@ interface WorkSchedule {
   sunday: DaySchedule;
 }
 
+interface VacationPeriod {
+  enabled: boolean;
+  startDate: string;
+  endDate: string;
+}
+
 interface Professional {
   id: number;
   name: string;
@@ -65,6 +92,7 @@ interface Professional {
   services: Service[];
   schedule?: WorkSchedule;
   monthlySchedules?: MonthlySchedule[];
+  vacation?: VacationPeriod;
 }
 
 interface Appointment {
@@ -167,6 +195,24 @@ const initialData: Professional[] = [
   },
 ];
 
+
+const defaultSiteConfig: SiteConfig = {
+  siteName: 'Elegance Space',
+  footerDescription:
+    'Sistema de agendamento moderno para salões de beleza. Transformando a experiência de agendamento com elegância e praticidade.',
+  contactEmail: 'contato@elegancespace.com',
+  contactPhone: '(11) 99999-9999',
+  servicesBadge: 'O que oferecemos',
+  servicesTitle: 'Nossos Serviços',
+  servicesSubtitle: 'Uma variedade de serviços para realçar sua beleza e bem-estar.',
+  services: [
+    { id: 1, name: 'Corte e Pintura', description: 'Transformação completa dos fios' },
+    { id: 2, name: 'Manicure e Pedicure', description: 'Cuidados completos para as unhas' },
+    { id: 3, name: 'Tratamentos Faciais', description: 'Limpeza e rejuvenescimento' },
+    { id: 4, name: 'Massagem Relaxante', description: 'Bem-estar e relaxamento' },
+  ],
+};
+
 // ============================================
 // COMPONENTES AUXILIARES
 // ============================================
@@ -207,11 +253,10 @@ const formatScheduleSummary = (schedule?: WorkSchedule): string => {
 
 const formatMonthlyScheduleSummary = (monthlySchedules?: MonthlySchedule[]): string => {
   if (!monthlySchedules || monthlySchedules.length === 0) return '';
-  const selected = [...monthlySchedules].sort((a, b) => b.monthYear.localeCompare(a.monthYear))[0];
-  const monthLabel = selected.monthYear.split('-').reverse().join('/');
+  const selected = monthlySchedules[0];
   const enabledDays = Object.entries(selected.weeklyRules).filter(([, rule]) => rule.enabled);
   if (enabledDays.length === 0) {
-    return `Agenda ${monthLabel} não configurada`;
+    return 'Agenda semanal não configurada';
   }
   const groups: { days: string[]; start: string; end: string }[] = [];
   enabledDays.forEach(([dayKey, rule]) => {
@@ -230,7 +275,205 @@ const formatMonthlyScheduleSummary = (monthlySchedules?: MonthlySchedule[]): str
     else groups.push({ days: [label], start: rule.startTime, end: rule.endTime });
   });
   const summary = groups.map((g) => `${g.days.join(' a ')}: ${g.start} às ${g.end}`).join(' | ');
-  return `${monthLabel}: ${summary}`;
+  return `Agenda semanal: ${summary}`;
+};
+
+const getInitialWeeklyRules = (professional: Professional | null): Record<WeekDay, WeeklyRule> => {
+  const defaults = createDefaultWeeklyRules();
+
+  if (professional?.monthlySchedules?.[0]?.weeklyRules) {
+    const rules = professional.monthlySchedules[0].weeklyRules;
+    return {
+      monday: { ...defaults.monday, ...rules.monday },
+      tuesday: { ...defaults.tuesday, ...rules.tuesday },
+      wednesday: { ...defaults.wednesday, ...rules.wednesday },
+      thursday: { ...defaults.thursday, ...rules.thursday },
+      friday: { ...defaults.friday, ...rules.friday },
+      saturday: { ...defaults.saturday, ...rules.saturday },
+      sunday: { ...defaults.sunday, ...rules.sunday },
+    };
+  }
+
+  if (professional?.schedule) {
+    return {
+      monday: { ...defaults.monday, ...professional.schedule.monday },
+      tuesday: { ...defaults.tuesday, ...professional.schedule.tuesday },
+      wednesday: { ...defaults.wednesday, ...professional.schedule.wednesday },
+      thursday: { ...defaults.thursday, ...professional.schedule.thursday },
+      friday: { ...defaults.friday, ...professional.schedule.friday },
+      saturday: { ...defaults.saturday, ...professional.schedule.saturday },
+      sunday: { ...defaults.sunday, ...professional.schedule.sunday },
+    };
+  }
+
+  return defaults;
+};
+
+const buildAutomaticSchedules = (
+  weeklyRules: Record<WeekDay, WeeklyRule>,
+  currentSchedules: MonthlySchedule[],
+): MonthlySchedule[] => {
+  const allBlocks = currentSchedules.flatMap((schedule) => schedule.blocks ?? []);
+
+  return [
+    {
+      monthYear: getCurrentMonthYear(),
+      weeklyRules,
+      blocks: allBlocks,
+      released: true,
+    },
+  ];
+};
+
+const weeklyDayLabels: Record<WeekDay, string> = {
+  monday: 'Segunda-feira',
+  tuesday: 'Terça-feira',
+  wednesday: 'Quarta-feira',
+  thursday: 'Quinta-feira',
+  friday: 'Sexta-feira',
+  saturday: 'Sábado',
+  sunday: 'Domingo',
+};
+
+const weekDayOrder: WeekDay[] = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+];
+
+const WeeklyScheduleEditor = ({
+  weeklyRules,
+  onChange,
+}: {
+  weeklyRules: Record<WeekDay, WeeklyRule>;
+  onChange: (rules: Record<WeekDay, WeeklyRule>) => void;
+}) => {
+  const updateDay = (day: WeekDay, update: Partial<WeeklyRule>) => {
+    onChange({
+      ...weeklyRules,
+      [day]: {
+        ...weeklyRules[day],
+        ...update,
+      },
+    });
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-pink-100 bg-pink-50 p-4">
+        <p className="text-sm font-semibold text-pink-700">Liberação automática</p>
+        <p className="mt-1 text-sm text-gray-600">
+          A agenda dos clientes será liberada automaticamente de hoje até o mesmo dia do próximo mês.
+          Amanhã, um novo dia será liberado sozinho. Não precisa liberar mês manualmente.
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-5">
+        <h3 className="text-sm font-semibold text-gray-800 mb-4">
+          Configuração semanal de dias e horários
+        </h3>
+
+        <div className="space-y-3">
+          {weekDayOrder.map((day) => {
+            const rule = weeklyRules[day];
+
+            return (
+              <div
+                key={day}
+                className="grid gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4 xl:grid-cols-[1fr_auto_130px_130px_150px_auto_130px_130px]"
+              >
+                <div className="flex items-center">
+                  <p className="text-sm font-medium text-gray-700">{weeklyDayLabels[day]}</p>
+                </div>
+
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={rule.enabled}
+                    onChange={(event) => updateDay(day, { enabled: event.target.checked })}
+                    className="h-4 w-4 rounded border-gray-300 text-pink-500 focus:ring-pink-500"
+                  />
+                  Trabalha
+                </label>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Início</label>
+                  <input
+                    type="time"
+                    value={rule.startTime}
+                    onChange={(event) => updateDay(day, { startTime: event.target.value })}
+                    disabled={!rule.enabled}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 disabled:cursor-not-allowed disabled:opacity-60 focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Fim</label>
+                  <input
+                    type="time"
+                    value={rule.endTime}
+                    onChange={(event) => updateDay(day, { endTime: event.target.value })}
+                    disabled={!rule.enabled}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 disabled:cursor-not-allowed disabled:opacity-60 focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Intervalo</label>
+                  <select
+                    value={rule.intervalMinutes || 30}
+                    onChange={(event) => updateDay(day, { intervalMinutes: Number(event.target.value) as 30 | 60 })}
+                    disabled={!rule.enabled}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 disabled:cursor-not-allowed disabled:opacity-60 focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                  >
+                    <option value={30}>30 em 30 min</option>
+                    <option value={60}>1 em 1 hora</option>
+                  </select>
+                </div>
+
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={rule.hasLunchBreak || false}
+                    onChange={(event) => updateDay(day, { hasLunchBreak: event.target.checked })}
+                    disabled={!rule.enabled}
+                    className="h-4 w-4 rounded border-gray-300 text-pink-500 focus:ring-pink-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  />
+                  Almoço
+                </label>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Início almoço</label>
+                  <input
+                    type="time"
+                    value={rule.lunchStartTime || '12:00'}
+                    onChange={(event) => updateDay(day, { lunchStartTime: event.target.value })}
+                    disabled={!rule.enabled || !rule.hasLunchBreak}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 disabled:cursor-not-allowed disabled:opacity-60 focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Fim almoço</label>
+                  <input
+                    type="time"
+                    value={rule.lunchEndTime || '13:00'}
+                    onChange={(event) => updateDay(day, { lunchEndTime: event.target.value })}
+                    disabled={!rule.enabled || !rule.hasLunchBreak}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 disabled:cursor-not-allowed disabled:opacity-60 focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // Modal para editar/adicionar profissional
@@ -240,7 +483,14 @@ const ProfessionalModal = ({
   onClose,
 }: {
   professional: Professional | null;
-  onSave: (data: { name: string; specialty: string; status: 'active' | 'inactive'; image: string; monthlySchedules: MonthlySchedule[] }) => void;
+  onSave: (data: {
+    name: string;
+    specialty: string;
+    status: 'active' | 'inactive';
+    image: string;
+    monthlySchedules: MonthlySchedule[];
+    vacation?: VacationPeriod;
+  }) => void;
   onClose: () => void;
 }) => {
   const [name, setName] = useState(professional?.name || '');
@@ -248,24 +498,32 @@ const ProfessionalModal = ({
   const [status, setStatus] = useState<'active' | 'inactive'>(professional?.status || 'active');
   const [image, setImage] = useState(professional?.image || '');
   const [monthlySchedules, setMonthlySchedules] = useState<MonthlySchedule[]>(professional?.monthlySchedules || []);
-  const [activeTab, setActiveTab] = useState<'Dados' | 'Serviços' | 'Agenda mensal' | 'Bloqueios'>('Dados');
-  const [blockMonth, setBlockMonth] = useState<string>(professional?.monthlySchedules?.[0]?.monthYear || getCurrentMonthYear());
-
-  useEffect(() => {
-    if (!monthlySchedules.some((item) => item.monthYear === blockMonth)) {
-      setBlockMonth(monthlySchedules[0]?.monthYear || getCurrentMonthYear());
-    }
-  }, [monthlySchedules, blockMonth]);
-
+  const [weeklyRules, setWeeklyRules] = useState<Record<WeekDay, WeeklyRule>>(getInitialWeeklyRules(professional));
+  const [vacation, setVacation] = useState<VacationPeriod>(
+    professional?.vacation || {
+      enabled: false,
+      startDate: '',
+      endDate: '',
+    },
+  );
+  const [activeTab, setActiveTab] = useState<'Dados' | 'Serviços' | 'Agenda semanal' | 'Férias' | 'Bloqueios'>('Dados');
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({ name, specialty, status, image, monthlySchedules });
+    onSave({
+      name,
+      specialty,
+      status,
+      image,
+      monthlySchedules: buildAutomaticSchedules(weeklyRules, monthlySchedules),
+      vacation,
+    });
   };
 
-  const tabs: Array<{ key: 'Dados' | 'Serviços' | 'Agenda mensal' | 'Bloqueios'; label: string }> = [
+  const tabs: Array<{ key: 'Dados' | 'Serviços' | 'Agenda semanal' | 'Férias' | 'Bloqueios'; label: string }> = [
     { key: 'Dados', label: 'Dados da profissional' },
     { key: 'Serviços', label: 'Serviços' },
-    { key: 'Agenda mensal', label: 'Agenda mensal' },
+    { key: 'Agenda semanal', label: 'Agenda semanal' },
+    { key: 'Férias', label: 'Férias' },
     { key: 'Bloqueios', label: 'Bloqueios' },
   ];
 
@@ -277,7 +535,9 @@ const ProfessionalModal = ({
   };
 
   const handleAddBlock = (block: ScheduleBlock) => {
-    const schedule = monthlySchedules.find((item) => item.monthYear === blockMonth);
+    const scheduleMonth = getCurrentMonthYear();
+    const schedule = monthlySchedules.find((item) => item.monthYear === scheduleMonth);
+
     if (schedule) {
       updateMonthlySchedule({
         ...schedule,
@@ -287,22 +547,84 @@ const ProfessionalModal = ({
     }
 
     updateMonthlySchedule({
-      ...createMonthlySchedule(blockMonth),
+      ...createMonthlySchedule(scheduleMonth),
       blocks: [block],
+      released: true,
     });
   };
 
   const handleRemoveBlock = (blockId: string) => {
     setMonthlySchedules(
-      monthlySchedules.map((schedule) =>
-        schedule.monthYear === blockMonth
-          ? { ...schedule, blocks: schedule.blocks.filter((block) => block.id !== blockId) }
-          : schedule,
-      ),
+      monthlySchedules.map((schedule) => ({
+        ...schedule,
+        blocks: schedule.blocks.filter((block) => block.id !== blockId),
+      })),
     );
   };
 
-  const selectedBlockSchedule = monthlySchedules.find((item) => item.monthYear === blockMonth);
+  const toLocalDateKey = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatDateLabel = (date: Date) => {
+    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  const dayLabels: Record<WeekDay, string> = {
+    monday: 'Seg',
+    tuesday: 'Ter',
+    wednesday: 'Qua',
+    thursday: 'Qui',
+    friday: 'Sex',
+    saturday: 'Sáb',
+    sunday: 'Dom',
+  };
+
+  const weekdayFromIndex: WeekDay[] = [
+    'sunday',
+    'monday',
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+    'saturday',
+  ];
+
+  const getRollingAvailableDates = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const limitDate = new Date(today);
+    limitDate.setMonth(limitDate.getMonth() + 1);
+
+    const dates: { dateKey: string; label: string }[] = [];
+    const current = new Date(today);
+
+    while (current <= limitDate) {
+      const dayKey = weekdayFromIndex[current.getDay()];
+      const rule = weeklyRules[dayKey];
+
+      if (rule.enabled) {
+        dates.push({
+          dateKey: toLocalDateKey(current),
+          label: `${formatDateLabel(current)} • ${dayLabels[dayKey]}`,
+        });
+      }
+
+      current.setDate(current.getDate() + 1);
+    }
+
+    return dates;
+  };
+
+  const availableBlockDates = getRollingAvailableDates();
+  const availableBlockDateKeys = availableBlockDates.map((item) => item.dateKey);
+  const allBlocks = monthlySchedules.flatMap((schedule) => schedule.blocks ?? []);
+  const visibleBlocks = allBlocks.filter((block) => availableBlockDateKeys.includes(block.date));
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -314,7 +636,7 @@ const ProfessionalModal = ({
                 {professional ? 'Editar Profissional' : 'Nova Profissional'}
               </h3>
               <p className="text-sm text-gray-500 mt-1">
-                Gerencie os dados, serviços e disponibilidade mensal.
+                Gerencie os dados, serviços e disponibilidade semanal.
               </p>
             </div>
             <button
@@ -435,47 +757,119 @@ const ProfessionalModal = ({
               </div>
             )}
 
-            {activeTab === 'Agenda mensal' && (
-              <div>
-                <MonthlyScheduleEditor
-                  monthlySchedules={monthlySchedules}
-                  onChange={setMonthlySchedules}
-                />
+            {activeTab === 'Agenda semanal' && (
+              <WeeklyScheduleEditor
+                weeklyRules={weeklyRules}
+                onChange={setWeeklyRules}
+              />
+            )}
+
+            {activeTab === 'Férias' && (
+              <div className="space-y-6">
+                <div className="rounded-2xl border border-pink-100 bg-pink-50 p-4">
+                  <p className="text-sm font-semibold text-pink-700">
+                    Período de férias da profissional
+                  </p>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Quando marcado, a profissional não ficará disponível para agendamentos dentro do período escolhido.
+                    Você pode desmarcar depois caso ela decida trabalhar.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                  <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={vacation.enabled}
+                      onChange={(event) =>
+                        setVacation((current) => ({
+                          ...current,
+                          enabled: event.target.checked,
+                        }))
+                      }
+                      className="h-4 w-4 rounded border-gray-300 text-pink-500 focus:ring-pink-500"
+                    />
+                    Vai tirar férias
+                  </label>
+
+                  <div className="mt-5 grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Início das férias
+                      </label>
+                      <input
+                        type="date"
+                        value={vacation.startDate}
+                        onChange={(event) =>
+                          setVacation((current) => ({
+                            ...current,
+                            startDate: event.target.value,
+                          }))
+                        }
+                        disabled={!vacation.enabled}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Fim das férias
+                      </label>
+                      <input
+                        type="date"
+                        value={vacation.endDate}
+                        onChange={(event) =>
+                          setVacation((current) => ({
+                            ...current,
+                            endDate: event.target.value,
+                          }))
+                        }
+                        disabled={!vacation.enabled}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      />
+                    </div>
+                  </div>
+
+                  {vacation.enabled && vacation.startDate && vacation.endDate && (
+                    <div className="mt-5 rounded-2xl border border-green-100 bg-green-50 p-4 text-sm text-green-700">
+                      Férias configuradas de {vacation.startDate} até {vacation.endDate}.
+                    </div>
+                  )}
+
+                  {vacation.enabled && (!vacation.startDate || !vacation.endDate) && (
+                    <div className="mt-5 rounded-2xl border border-yellow-100 bg-yellow-50 p-4 text-sm text-yellow-700">
+                      Informe a data de início e fim para bloquear o período de férias.
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
             {activeTab === 'Bloqueios' && (
               <div className="space-y-6">
-                <div className="grid gap-3 md:grid-cols-2 items-end">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mês/Ano</label>
-                    <input
-                      type="month"
-                      value={blockMonth}
-                      onChange={(e) => setBlockMonth(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-                    />
-                  </div>
-                  <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                    <p className="text-sm font-semibold text-gray-700 mb-2">Blocos no mês</p>
-                    {selectedBlockSchedule?.blocks.length ? (
-                      <p className="text-sm text-gray-600">{selectedBlockSchedule.blocks.length} bloqueio(s) cadastrados</p>
-                    ) : (
-                      <p className="text-sm text-gray-500">Nenhum bloqueio cadastrado para este mês.</p>
-                    )}
-                  </div>
+                <div className="rounded-2xl border border-pink-100 bg-pink-50 p-4">
+                  <p className="text-sm font-semibold text-pink-700">
+                    Bloqueios dentro da agenda liberada
+                  </p>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Só é possível bloquear datas disponíveis entre hoje e o mesmo dia do próximo mês.
+                    Amanhã, um novo dia será liberado automaticamente.
+                  </p>
                 </div>
 
                 <div className="bg-white border border-gray-200 rounded-2xl p-5">
                   <h3 className="text-sm font-semibold text-gray-800 mb-4">Adicionar bloqueio</h3>
-                  <ScheduleBlockForm monthYear={blockMonth} onAdd={handleAddBlock} />
+                  <ScheduleBlockForm
+                    availableDates={availableBlockDates}
+                    onAdd={handleAddBlock}
+                  />
                 </div>
 
                 <div className="bg-white border border-gray-200 rounded-2xl p-5">
                   <h3 className="text-sm font-semibold text-gray-800 mb-4">Bloqueios cadastrados</h3>
-                  {selectedBlockSchedule?.blocks.length ? (
+                  {visibleBlocks.length ? (
                     <div className="space-y-3">
-                      {selectedBlockSchedule.blocks.map((block) => (
+                      {visibleBlocks.map((block) => (
                         <div key={block.id} className="rounded-2xl border border-gray-200 p-4 bg-gray-50 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div>
                             <p className="text-sm font-semibold text-gray-800">{block.date}</p>
@@ -497,7 +891,7 @@ const ProfessionalModal = ({
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">Nenhum bloqueio registrado para este mês.</p>
+                    <p className="text-sm text-gray-500">Nenhum bloqueio registrado dentro da janela atual de agenda.</p>
                   )}
                 </div>
               </div>
@@ -628,6 +1022,8 @@ const Admin = () => {
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [appointmentTab, setAppointmentTab] = useState<'por-profissional' | 'base-geral'>('por-profissional');
+  const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultSiteConfig);
+  const [siteConfigSaved, setSiteConfigSaved] = useState(false);
 
   // Filtros para "Por profissional"
   const [professionalDateFilter, setProfessionalDateFilter] = useState<string>('');
@@ -656,6 +1052,17 @@ const Admin = () => {
       }
     } else {
       setProfessionals(initialData);
+    }
+  }, []);
+
+  useEffect(() => {
+    const savedConfig = localStorage.getItem(SITE_CONFIG_STORAGE_KEY);
+    if (!savedConfig) return;
+
+    try {
+      setSiteConfig({ ...defaultSiteConfig, ...JSON.parse(savedConfig) });
+    } catch {
+      setSiteConfig(defaultSiteConfig);
     }
   }, []);
 
@@ -779,6 +1186,39 @@ const handleDeleteAppointment = (appointmentId: string) => {
     document.body.removeChild(link);
   };
 
+
+  const updateSiteConfig = (update: Partial<SiteConfig>) => {
+    setSiteConfig((current) => ({
+      ...current,
+      ...update,
+    }));
+    setSiteConfigSaved(false);
+  };
+
+  const updateSiteService = (serviceId: number, update: Partial<SiteService>) => {
+    setSiteConfig((current) => ({
+      ...current,
+      services: current.services.map((service) =>
+        service.id === serviceId ? { ...service, ...update } : service,
+      ),
+    }));
+    setSiteConfigSaved(false);
+  };
+
+  const handleSaveSiteConfig = () => {
+    localStorage.setItem(SITE_CONFIG_STORAGE_KEY, JSON.stringify(siteConfig));
+    setSiteConfigSaved(true);
+    window.setTimeout(() => setSiteConfigSaved(false), 2500);
+  };
+
+  const handleResetSiteConfig = () => {
+    if (!confirm('Tem certeza que deseja restaurar as informações padrão do site?')) return;
+    setSiteConfig(defaultSiteConfig);
+    localStorage.setItem(SITE_CONFIG_STORAGE_KEY, JSON.stringify(defaultSiteConfig));
+    setSiteConfigSaved(true);
+    window.setTimeout(() => setSiteConfigSaved(false), 2500);
+  };
+
   // ============================================
   // SALVAR NO LOCALSTORAGE
   // ============================================
@@ -813,7 +1253,14 @@ const handleDeleteAppointment = (appointmentId: string) => {
     setShowProfessionalModal(true);
   };
 
-  const handleSaveProfessional = (data: { name: string; specialty: string; status: 'active' | 'inactive'; image: string; monthlySchedules: MonthlySchedule[] }) => {
+  const handleSaveProfessional = (data: {
+    name: string;
+    specialty: string;
+    status: 'active' | 'inactive';
+    image: string;
+    monthlySchedules: MonthlySchedule[];
+    vacation?: VacationPeriod;
+  }) => {
     let updatedProfessionals: Professional[];
     
     if (editingProfessional) {
@@ -955,6 +1402,148 @@ const handleDeleteAppointment = (appointmentId: string) => {
             >
               ← Voltar ao site
             </a>
+          </div>
+        </div>
+      </div>
+
+
+      {/* Configurações do Site */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800">Configurações do site</h2>
+              <p className="text-sm text-gray-500">
+                Edite os textos da seção de serviços, rodapé e informações de contato.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleResetSiteConfig}
+                className="rounded-2xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Restaurar padrão
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveSiteConfig}
+                className="rounded-2xl bg-pink-500 px-4 py-2 text-sm font-medium text-white hover:bg-pink-600"
+              >
+                Salvar configurações
+              </button>
+            </div>
+          </div>
+
+          {siteConfigSaved && (
+            <div className="mb-4 rounded-2xl border border-green-100 bg-green-50 p-3 text-sm text-green-700">
+              Configurações salvas com sucesso.
+            </div>
+          )}
+
+          <div className="grid gap-5 lg:grid-cols-2">
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-gray-800">Rodapé e contato</h3>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Nome do site</label>
+                <input
+                  type="text"
+                  value={siteConfig.siteName}
+                  onChange={(event) => updateSiteConfig({ siteName: event.target.value })}
+                  className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Descrição do rodapé</label>
+                <textarea
+                  value={siteConfig.footerDescription}
+                  onChange={(event) => updateSiteConfig({ footerDescription: event.target.value })}
+                  rows={4}
+                  className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">E-mail</label>
+                  <input
+                    type="email"
+                    value={siteConfig.contactEmail}
+                    onChange={(event) => updateSiteConfig({ contactEmail: event.target.value })}
+                    className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Telefone</label>
+                  <input
+                    type="text"
+                    value={siteConfig.contactPhone}
+                    onChange={(event) => updateSiteConfig({ contactPhone: event.target.value })}
+                    className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-gray-800">Seção de serviços da Home</h3>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Etiqueta acima do título</label>
+                <input
+                  type="text"
+                  value={siteConfig.servicesBadge}
+                  onChange={(event) => updateSiteConfig({ servicesBadge: event.target.value })}
+                  className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Título</label>
+                <input
+                  type="text"
+                  value={siteConfig.servicesTitle}
+                  onChange={(event) => updateSiteConfig({ servicesTitle: event.target.value })}
+                  className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Subtítulo</label>
+                <textarea
+                  value={siteConfig.servicesSubtitle}
+                  onChange={(event) => updateSiteConfig({ servicesSubtitle: event.target.value })}
+                  rows={3}
+                  className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                />
+              </div>
+
+              <div className="grid gap-3">
+                {siteConfig.services.map((service, index) => (
+                  <div key={service.id} className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                    <p className="mb-3 text-sm font-semibold text-gray-700">Card {index + 1}</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <input
+                        type="text"
+                        value={service.name}
+                        onChange={(event) => updateSiteService(service.id, { name: event.target.value })}
+                        placeholder="Nome do serviço"
+                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                      />
+                      <input
+                        type="text"
+                        value={service.description}
+                        onChange={(event) => updateSiteService(service.id, { description: event.target.value })}
+                        placeholder="Descrição"
+                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>

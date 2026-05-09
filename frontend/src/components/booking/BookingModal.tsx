@@ -29,6 +29,12 @@ interface WorkSchedule {
   sunday: WeeklyRule;
 }
 
+interface VacationPeriod {
+  enabled: boolean;
+  startDate: string;
+  endDate: string;
+}
+
 export interface Professional {
   id: number;
   name: string;
@@ -38,6 +44,7 @@ export interface Professional {
   services: Service[];
   monthlySchedules?: MonthlySchedule[];
   schedule?: WorkSchedule;
+  vacation?: VacationPeriod;
 }
 
 interface Appointment {
@@ -262,7 +269,15 @@ const buildAutomaticSchedule = (
   return buildScheduleFromWork(professional.schedule, getCurrentMonthYear());
 };
 
-const getAvailableDates = (schedule: MonthlySchedule) => {
+const isDateInVacation = (dateKey: string, vacation?: VacationPeriod) => {
+  if (!vacation?.enabled || !vacation.startDate || !vacation.endDate) {
+    return false;
+  }
+
+  return dateKey >= vacation.startDate && dateKey <= vacation.endDate;
+};
+
+const getAvailableDates = (schedule: MonthlySchedule, vacation?: VacationPeriod) => {
   const dates = getRollingAvailableDates();
 
   return dates.map((date) => {
@@ -273,6 +288,8 @@ const getAvailableDates = (schedule: MonthlySchedule) => {
     const fullDayBlock = schedule.blocks.some(
       (block) => block.date === dateKey && block.type === 'full-day',
     );
+
+    const vacationBlocked = isDateInVacation(dateKey, vacation);
 
     const blockedRanges = schedule.blocks
       .filter(
@@ -287,14 +304,16 @@ const getAvailableDates = (schedule: MonthlySchedule) => {
       date,
       dateKey,
       label: `${formatDateLabel(date)} • ${dayLabels[dayKey]}`,
-      available: rule.enabled && !fullDayBlock,
+      available: rule.enabled && !fullDayBlock && !vacationBlocked,
       reason: !rule.enabled
         ? 'Indisponível'
-        : fullDayBlock
-          ? 'Bloqueado'
-          : blockedRanges.length > 0
-            ? 'Parcialmente disponível'
-            : 'Disponível',
+        : vacationBlocked
+          ? 'Férias'
+          : fullDayBlock
+            ? 'Bloqueado'
+            : blockedRanges.length > 0
+              ? 'Parcialmente disponível'
+              : 'Disponível',
       blockedRanges,
       startTime: rule.startTime,
       endTime: rule.endTime,
@@ -308,8 +327,11 @@ const getAvailableTimeSlots = (
   durationMinutes: number,
   appointments: Appointment[],
   professionalId: number,
+  vacation?: VacationPeriod,
 ) => {
   if (!selectedDate || !schedule) return [];
+
+  if (isDateInVacation(selectedDate, vacation)) return [];
 
   const [year, month, day] = selectedDate.split('-').map(Number);
   const date = new Date(year, month - 1, day);
@@ -454,8 +476,11 @@ const BookingModal = ({
   );
 
   const availableDates = useMemo(
-    () => (selectedSchedule ? getAvailableDates(selectedSchedule) : []),
-    [selectedSchedule],
+    () =>
+      selectedSchedule
+        ? getAvailableDates(selectedSchedule, selectedProfessional?.vacation)
+        : [],
+    [selectedSchedule, selectedProfessional],
   );
 
   const selectedService = selectedProfessional?.services.find(
@@ -472,6 +497,7 @@ const BookingModal = ({
           duration,
           loadAppointments(),
           selectedProfessional?.id ?? 0,
+          selectedProfessional?.vacation,
         )
       : [];
   }, [selectedSchedule, selectedDate, selectedService, selectedProfessional]);

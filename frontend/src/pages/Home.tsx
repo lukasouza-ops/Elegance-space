@@ -21,7 +21,42 @@ interface Professional {
   services: Service[];
 }
 
+interface SiteService {
+  id: number;
+  name: string;
+  description: string;
+}
+
+interface SiteConfig {
+  siteName: string;
+  footerDescription: string;
+  contactEmail: string;
+  contactPhone: string;
+  servicesBadge: string;
+  servicesTitle: string;
+  servicesSubtitle: string;
+  services: SiteService[];
+}
+
 const STORAGE_KEY = 'elegance_space_professionals';
+const SITE_CONFIG_STORAGE_KEY = 'elegance_space_site_config';
+
+const defaultSiteConfig: SiteConfig = {
+  siteName: 'Elegance Space',
+  footerDescription:
+    'Sistema de agendamento moderno para salões de beleza. Transformando a experiência de agendamento com elegância e praticidade.',
+  contactEmail: 'contato@elegancespace.com',
+  contactPhone: '(11) 99999-9999',
+  servicesBadge: 'O que oferecemos',
+  servicesTitle: 'Nossos Serviços',
+  servicesSubtitle: 'Uma variedade de serviços para realçar sua beleza e bem-estar.',
+  services: [
+    { id: 1, name: 'Corte e Pintura', description: 'Transformação completa dos fios' },
+    { id: 2, name: 'Manicure e Pedicure', description: 'Cuidados completos para as unhas' },
+    { id: 3, name: 'Tratamentos Faciais', description: 'Limpeza e rejuvenescimento' },
+    { id: 4, name: 'Massagem Relaxante', description: 'Bem-estar e relaxamento' },
+  ],
+};
 
 const defaultProfessionals: Professional[] = [
   {
@@ -69,26 +104,29 @@ const defaultProfessionals: Professional[] = [
   },
 ];
 
-const services = [
-  { name: 'Corte e Pintura', description: 'Transformação completa dos fios' },
-  { name: 'Manicure e Pedicure', description: 'Cuidados completos para as unhas' },
-  { name: 'Tratamentos Faciais', description: 'Limpeza e rejuvenescimento' },
-  { name: 'Massagem Relaxante', description: 'Bem-estar e relaxamento' },
-];
+const loadSiteConfig = (): SiteConfig => {
+  const savedConfig = localStorage.getItem(SITE_CONFIG_STORAGE_KEY);
+  if (!savedConfig) return defaultSiteConfig;
+
+  try {
+    return { ...defaultSiteConfig, ...JSON.parse(savedConfig) };
+  } catch {
+    return defaultSiteConfig;
+  }
+};
 
 const Home = () => {
   const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultSiteConfig);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [bookingProfessionalId, setBookingProfessionalId] = useState<number | null>(null);
   const [bookingToast, setBookingToast] = useState('');
 
   useEffect(() => {
-    // Carregar do localStorage primeiro, senão usar dados padrão
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
       try {
         const parsed = JSON.parse(savedData);
-        // Filtrar apenas profissionais ativas para exibir na Home
         setProfessionals(parsed.filter((p: Professional) => p.status === 'active'));
       } catch {
         setProfessionals(defaultProfessionals.filter(p => p.status === 'active'));
@@ -96,6 +134,8 @@ const Home = () => {
     } else {
       setProfessionals(defaultProfessionals.filter(p => p.status === 'active'));
     }
+
+    setSiteConfig(loadSiteConfig());
   }, []);
 
   const handleNavigate = (sectionId: string) => {
@@ -160,7 +200,6 @@ const Home = () => {
         </div>
       )}
 
-      {/* Hero Section */}
       <section id="home" className="pt-24 pb-16 md:pt-32 md:pb-24 px-4">
         <div className="max-w-6xl mx-auto">
           <div className="text-center">
@@ -172,14 +211,14 @@ const Home = () => {
               <span className="text-pink-500">beleza</span> que existe em você
             </h1>
             <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto mb-8 leading-relaxed">
-              Agende seus serviços de beleza de forma simples e rápida. 
+              Agende seus serviços de beleza de forma simples e rápida.
               Profissionais especializadas prontas para transformar seu visual.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" onClick={() => setBookingOpen(true)}>
                 Agendar agora
               </Button>
-              <Button variant="outline" size="lg" onClick={() => scrollToSection('professionals')}>
+              <Button variant="outline" size="lg" onClick={() => handleNavigate('professionals')}>
                 Ver profissionais
               </Button>
             </div>
@@ -187,7 +226,6 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Professionals Section */}
       <section id="professionals" className="py-16 md:py-20 px-4 bg-white">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
@@ -204,8 +242,8 @@ const Home = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {professionals.map((professional) => (
-              <ProfessionalCard 
-                key={professional.id} 
+              <ProfessionalCard
+                key={professional.id}
                 professional={professional}
                 onViewSchedule={handleViewSchedule}
               />
@@ -214,25 +252,24 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Services Section */}
       <section id="services" className="py-16 md:py-20 px-4 bg-gradient-to-r from-pink-50 to-purple-50">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
             <span className="inline-block px-4 py-1.5 bg-pink-100 text-pink-600 rounded-full text-sm font-medium mb-4">
-              O que oferecemos
+              {siteConfig.servicesBadge}
             </span>
             <h2 className="text-3xl md:text-4xl font-serif font-bold text-gray-800 mb-4">
-              Nossos Serviços
+              {siteConfig.servicesTitle}
             </h2>
             <p className="text-gray-600 max-w-xl mx-auto">
-              Uma variedade de serviços para realçar sua beleza e bem-estar.
+              {siteConfig.servicesSubtitle}
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {services.map((service, index) => (
+            {siteConfig.services.map((service) => (
               <div
-                key={index}
+                key={service.id}
                 className="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow duration-300"
               >
                 <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center mb-4">
@@ -248,7 +285,6 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Booking CTA Section */}
       <section id="booking" className="py-16 md:py-20 px-4 bg-pink-500">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-serif font-bold text-white mb-4">
