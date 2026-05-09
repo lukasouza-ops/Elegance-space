@@ -13,6 +13,10 @@ interface WeeklyRule {
   enabled: boolean;
   startTime: string;
   endTime: string;
+  intervalMinutes?: 30 | 60;
+  hasLunchBreak?: boolean;
+  lunchStartTime?: string;
+  lunchEndTime?: string;
 }
 
 interface WorkSchedule {
@@ -60,7 +64,15 @@ interface BookingModalProps {
 
 const APPOINTMENT_STORAGE_KEY = 'elegance_space_appointments';
 
-const weekdayFromIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
+const weekdayFromIndex = [
+  'sunday',
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+] as const;
 
 type WeekDay = typeof weekdayFromIndex[number];
 
@@ -77,8 +89,17 @@ const fromMinutes = (minutes: number) => {
   return `${hours}:${mins}`;
 };
 
+const toLocalDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const formatDateLabel = (date: Date) => {
-  return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+  return `${String(date.getDate()).padStart(2, '0')}/${String(
+    date.getMonth() + 1,
+  ).padStart(2, '0')}`;
 };
 
 const parseDurationMinutes = (duration: string) => {
@@ -86,30 +107,99 @@ const parseDurationMinutes = (duration: string) => {
   return Number.isNaN(parsed) ? 60 : parsed;
 };
 
-const rangesOverlap = (aStart: number, aEnd: number, bStart: number, bEnd: number) => {
+const rangesOverlap = (
+  aStart: number,
+  aEnd: number,
+  bStart: number,
+  bEnd: number,
+) => {
   return aStart < bEnd && bStart < aEnd;
 };
 
-const normalizeWeeklyRules = (schedule?: WorkSchedule): Record<WeekDay, WeeklyRule> => ({
-  monday: schedule?.monday ?? { enabled: false, startTime: '08:00', endTime: '18:00' },
-  tuesday: schedule?.tuesday ?? { enabled: false, startTime: '08:00', endTime: '18:00' },
-  wednesday: schedule?.wednesday ?? { enabled: false, startTime: '08:00', endTime: '18:00' },
-  thursday: schedule?.thursday ?? { enabled: false, startTime: '08:00', endTime: '18:00' },
-  friday: schedule?.friday ?? { enabled: false, startTime: '08:00', endTime: '18:00' },
-  saturday: schedule?.saturday ?? { enabled: false, startTime: '09:00', endTime: '14:00' },
-  sunday: schedule?.sunday ?? { enabled: false, startTime: '09:00', endTime: '14:00' },
+const normalizeWeeklyRules = (
+  schedule?: WorkSchedule,
+): Record<WeekDay, WeeklyRule> => ({
+  monday: schedule?.monday ?? {
+    enabled: false,
+    startTime: '08:00',
+    endTime: '18:00',
+    intervalMinutes: 30,
+    hasLunchBreak: false,
+    lunchStartTime: '12:00',
+    lunchEndTime: '13:00',
+  },
+  tuesday: schedule?.tuesday ?? {
+    enabled: false,
+    startTime: '08:00',
+    endTime: '18:00',
+    intervalMinutes: 30,
+    hasLunchBreak: false,
+    lunchStartTime: '12:00',
+    lunchEndTime: '13:00',
+  },
+  wednesday: schedule?.wednesday ?? {
+    enabled: false,
+    startTime: '08:00',
+    endTime: '18:00',
+    intervalMinutes: 30,
+    hasLunchBreak: false,
+    lunchStartTime: '12:00',
+    lunchEndTime: '13:00',
+  },
+  thursday: schedule?.thursday ?? {
+    enabled: false,
+    startTime: '08:00',
+    endTime: '18:00',
+    intervalMinutes: 30,
+    hasLunchBreak: false,
+    lunchStartTime: '12:00',
+    lunchEndTime: '13:00',
+  },
+  friday: schedule?.friday ?? {
+    enabled: false,
+    startTime: '08:00',
+    endTime: '18:00',
+    intervalMinutes: 30,
+    hasLunchBreak: false,
+    lunchStartTime: '12:00',
+    lunchEndTime: '13:00',
+  },
+  saturday: schedule?.saturday ?? {
+    enabled: false,
+    startTime: '09:00',
+    endTime: '14:00',
+    intervalMinutes: 30,
+    hasLunchBreak: false,
+    lunchStartTime: '12:00',
+    lunchEndTime: '13:00',
+  },
+  sunday: schedule?.sunday ?? {
+    enabled: false,
+    startTime: '09:00',
+    endTime: '14:00',
+    intervalMinutes: 30,
+    hasLunchBreak: false,
+    lunchStartTime: '12:00',
+    lunchEndTime: '13:00',
+  },
 });
 
-const buildScheduleFromWork = (schedule?: WorkSchedule, monthYear = getCurrentMonthYear()): MonthlySchedule => ({
+const buildScheduleFromWork = (
+  schedule?: WorkSchedule,
+  monthYear = getCurrentMonthYear(),
+): MonthlySchedule => ({
   monthYear,
   weeklyRules: normalizeWeeklyRules(schedule),
   blocks: [],
+  released: true,
 });
 
 const loadAppointments = (): Appointment[] => {
   if (typeof window === 'undefined') return [];
+
   const raw = localStorage.getItem(APPOINTMENT_STORAGE_KEY);
   if (!raw) return [];
+
   try {
     return JSON.parse(raw) as Appointment[];
   } catch {
@@ -121,10 +211,22 @@ const saveAppointments = (appointments: Appointment[]) => {
   localStorage.setItem(APPOINTMENT_STORAGE_KEY, JSON.stringify(appointments));
 };
 
-const getMonthDates = (monthYear: string) => {
-  const [year, month] = monthYear.split('-').map(Number);
-  const days = new Date(year, month, 0).getDate();
-  return Array.from({ length: days }, (_, index) => new Date(year, month - 1, index + 1));
+const getRollingAvailableDates = () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const limitDate = new Date(today);
+  limitDate.setMonth(limitDate.getMonth() + 1);
+
+  const dates: Date[] = [];
+  const current = new Date(today);
+
+  while (current <= limitDate) {
+    dates.push(new Date(current));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
 };
 
 const dayLabels: Record<WeekDay, string> = {
@@ -137,26 +239,62 @@ const dayLabels: Record<WeekDay, string> = {
   sunday: 'Dom',
 };
 
-const isMonthlyScheduleReleased = (schedule: MonthlySchedule) =>
-  schedule.released ?? Object.values(schedule.weeklyRules).some((rule) => rule.enabled);
+const buildAutomaticSchedule = (
+  professional?: Professional,
+): MonthlySchedule | null => {
+  if (!professional) return null;
+
+  if (professional.monthlySchedules?.length) {
+    const baseSchedule = professional.monthlySchedules[0];
+    const allBlocks = professional.monthlySchedules.flatMap(
+      (schedule) => schedule.blocks ?? [],
+    );
+
+    return {
+      ...baseSchedule,
+      monthYear: getCurrentMonthYear(),
+      weeklyRules: baseSchedule.weeklyRules,
+      blocks: allBlocks,
+      released: true,
+    };
+  }
+
+  return buildScheduleFromWork(professional.schedule, getCurrentMonthYear());
+};
 
 const getAvailableDates = (schedule: MonthlySchedule) => {
-  const dates = getMonthDates(schedule.monthYear);
+  const dates = getRollingAvailableDates();
+
   return dates.map((date) => {
     const dayKey = weekdayFromIndex[date.getDay()];
     const rule = schedule.weeklyRules[dayKey];
-    const dateKey = date.toISOString().slice(0, 10);
-    const fullDayBlock = schedule.blocks.some((block) => block.date === dateKey && block.type === 'full-day');
+    const dateKey = toLocalDateKey(date);
+
+    const fullDayBlock = schedule.blocks.some(
+      (block) => block.date === dateKey && block.type === 'full-day',
+    );
+
     const blockedRanges = schedule.blocks
-      .filter((block) => block.date === dateKey && block.type === 'time-range')
-      .map((block) => ({ start: toMinutes(block.startTime ?? '00:00'), end: toMinutes(block.endTime ?? '00:00') }));
+      .filter(
+        (block) => block.date === dateKey && block.type === 'time-range',
+      )
+      .map((block) => ({
+        start: toMinutes(block.startTime ?? '00:00'),
+        end: toMinutes(block.endTime ?? '00:00'),
+      }));
 
     return {
       date,
       dateKey,
       label: `${formatDateLabel(date)} • ${dayLabels[dayKey]}`,
       available: rule.enabled && !fullDayBlock,
-      reason: !rule.enabled ? 'Indisponível' : fullDayBlock ? 'Bloqueado' : blockedRanges.length > 0 ? 'Parcialmente disponível' : 'Disponível',
+      reason: !rule.enabled
+        ? 'Indisponível'
+        : fullDayBlock
+          ? 'Bloqueado'
+          : blockedRanges.length > 0
+            ? 'Parcialmente disponível'
+            : 'Disponível',
       blockedRanges,
       startTime: rule.startTime,
       endTime: rule.endTime,
@@ -172,43 +310,86 @@ const getAvailableTimeSlots = (
   professionalId: number,
 ) => {
   if (!selectedDate || !schedule) return [];
-  const date = new Date(selectedDate);
+
+  const [year, month, day] = selectedDate.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
   const dayKey = weekdayFromIndex[date.getDay()];
   const rule = schedule.weeklyRules[dayKey];
+
   if (!rule.enabled) return [];
 
-  const fullDayBlock = schedule.blocks.some((block) => block.date === selectedDate && block.type === 'full-day');
+  const fullDayBlock = schedule.blocks.some(
+    (block) => block.date === selectedDate && block.type === 'full-day',
+  );
+
   if (fullDayBlock) return [];
 
   const blockedRanges = schedule.blocks
-    .filter((block) => block.date === selectedDate && block.type === 'time-range')
-    .map((block) => ({ start: toMinutes(block.startTime ?? '00:00'), end: toMinutes(block.endTime ?? '00:00') }));
+    .filter(
+      (block) => block.date === selectedDate && block.type === 'time-range',
+    )
+    .map((block) => ({
+      start: toMinutes(block.startTime ?? '00:00'),
+      end: toMinutes(block.endTime ?? '00:00'),
+    }));
 
   const dayStart = toMinutes(rule.startTime);
   const dayEnd = toMinutes(rule.endTime);
   const lastStart = dayEnd - durationMinutes;
+  const intervalMinutes = rule.intervalMinutes || 30;
+
+  const lunchRange =
+    rule.hasLunchBreak &&
+    rule.lunchStartTime &&
+    rule.lunchEndTime
+      ? {
+          start: toMinutes(rule.lunchStartTime),
+          end: toMinutes(rule.lunchEndTime),
+        }
+      : null;
+
   if (lastStart < dayStart) return [];
 
-const existingAppointments = appointments
-  .filter((item) => item.professionalId === professionalId && item.date === selectedDate)
-  .map((item) => {
-    const start = toMinutes(item.time);
-    const duration = parseDurationMinutes(item.duration ?? '60');
+  const existingAppointments = appointments
+    .filter(
+      (item) =>
+        item.professionalId === professionalId && item.date === selectedDate,
+    )
+    .map((item) => {
+      const start = toMinutes(item.time);
+      const duration = parseDurationMinutes(item.duration ?? '60');
 
-    return {
-      start,
-      end: start + duration,
-    };
-  });
+      return {
+        start,
+        end: start + duration,
+      };
+    });
 
   const slots: string[] = [];
-  for (let current = dayStart; current <= lastStart; current += 30) {
+
+  for (
+    let current = dayStart;
+    current <= lastStart;
+    current += intervalMinutes
+  ) {
     const slotEnd = current + durationMinutes;
-    const isBlocked = blockedRanges.some((block) => rangesOverlap(current, slotEnd, block.start, block.end));
-   const hasConflict = existingAppointments.some((appointment) =>
-  rangesOverlap(current, slotEnd, appointment.start, appointment.end)
-);
-    if (isBlocked || hasConflict) continue;
+
+    if (slotEnd > dayEnd) continue;
+
+    const isBlocked = blockedRanges.some((block) =>
+      rangesOverlap(current, slotEnd, block.start, block.end),
+    );
+
+    const isLunchTime = lunchRange
+      ? rangesOverlap(current, slotEnd, lunchRange.start, lunchRange.end)
+      : false;
+
+    const hasConflict = existingAppointments.some((appointment) =>
+      rangesOverlap(current, slotEnd, appointment.start, appointment.end),
+    );
+
+    if (isBlocked || isLunchTime || hasConflict) continue;
+
     slots.push(fromMinutes(current));
   }
 
@@ -224,48 +405,52 @@ const BookingModal = ({
 }: BookingModalProps) => {
   const [clientName, setClientName] = useState('');
   const [phone, setPhone] = useState('');
+
   const formatPhone = (value: string) => {
-  const numbers = value.replace(/\D/g, '').slice(0, 11);
+    const numbers = value.replace(/\D/g, '').slice(0, 11);
 
-  if (numbers.length <= 2) {
-    return numbers;
-  }
+    if (numbers.length <= 2) {
+      return numbers;
+    }
 
-  if (numbers.length <= 3) {
-    return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
-  }
+    if (numbers.length <= 3) {
+      return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    }
 
-  if (numbers.length <= 7) {
-    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 3)} ${numbers.slice(3)}`;
-  }
+    if (numbers.length <= 7) {
+      return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 3)} ${numbers.slice(
+        3,
+      )}`;
+    }
 
-  return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 3)} ${numbers.slice(3, 7)}-${numbers.slice(7, 11)}`;
-};
-  const [professionalId, setProfessionalId] = useState<number>(initialProfessionalId ?? professionals[0]?.id ?? 0);
-  const [serviceId, setServiceId] = useState<number>(professionals[0]?.services[0]?.id ?? 0);
-  const [monthYear, setMonthYear] = useState(getCurrentMonthYear());
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 3)} ${numbers.slice(
+      3,
+      7,
+    )}-${numbers.slice(7, 11)}`;
+  };
+
+  const [professionalId, setProfessionalId] = useState<number>(
+    initialProfessionalId ?? professionals[0]?.id ?? 0,
+  );
+
+  const [serviceId, setServiceId] = useState<number>(
+    professionals[0]?.services[0]?.id ?? 0,
+  );
+
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [error, setError] = useState('');
 
   const selectedProfessional = useMemo(
-    () => professionals.find((professional) => professional.id === professionalId) ?? professionals[0],
+    () =>
+      professionals.find((professional) => professional.id === professionalId) ??
+      professionals[0],
     [professionalId, professionals],
   );
 
-  const effectiveSchedules = useMemo(() => {
-    if (!selectedProfessional) return [];
-    if (selectedProfessional.monthlySchedules?.length) {
-      return selectedProfessional.monthlySchedules.filter(isMonthlyScheduleReleased);
-    }
-    return [buildScheduleFromWork(selectedProfessional.schedule, getCurrentMonthYear())];
-  }, [selectedProfessional]);
-
-  const scheduleOptions = useMemo(() => effectiveSchedules.map((schedule) => schedule.monthYear), [effectiveSchedules]);
-
   const selectedSchedule = useMemo(
-    () => effectiveSchedules.find((schedule) => schedule.monthYear === monthYear) ?? effectiveSchedules[0],
-    [effectiveSchedules, monthYear],
+    () => buildAutomaticSchedule(selectedProfessional),
+    [selectedProfessional],
   );
 
   const availableDates = useMemo(
@@ -273,43 +458,48 @@ const BookingModal = ({
     [selectedSchedule],
   );
 
-  const selectedService = selectedProfessional?.services.find((service) => service.id === serviceId);
+  const selectedService = selectedProfessional?.services.find(
+    (service) => service.id === serviceId,
+  );
 
   const appointmentSlots = useMemo(() => {
     const duration = parseDurationMinutes(selectedService?.duration ?? '60');
-    return selectedSchedule ? getAvailableTimeSlots(selectedSchedule, selectedDate, duration, loadAppointments(), selectedProfessional?.id ?? 0) : [];
+
+    return selectedSchedule
+      ? getAvailableTimeSlots(
+          selectedSchedule,
+          selectedDate,
+          duration,
+          loadAppointments(),
+          selectedProfessional?.id ?? 0,
+        )
+      : [];
   }, [selectedSchedule, selectedDate, selectedService, selectedProfessional]);
 
   useEffect(() => {
     if (!isOpen || !selectedProfessional) return;
+
     const service = selectedProfessional.services[0];
+
     setProfessionalId(initialProfessionalId ?? selectedProfessional.id);
     setServiceId(service?.id ?? 0);
-    setMonthYear(effectiveSchedules[0]?.monthYear ?? getCurrentMonthYear());
     setSelectedDate('');
     setSelectedTime('');
     setClientName('');
     setPhone('');
     setError('');
-  }, [isOpen, initialProfessionalId, selectedProfessional, effectiveSchedules]);
-
-  useEffect(() => {
-    if (!scheduleOptions.includes(monthYear) && scheduleOptions.length > 0) {
-      setMonthYear(scheduleOptions[0]);
-      setSelectedDate('');
-      setSelectedTime('');
-    }
-  }, [scheduleOptions, monthYear]);
+  }, [isOpen, initialProfessionalId, selectedProfessional]);
 
   const handleProfessionalChange = (value: string) => {
     const id = Number(value);
     const professional = professionals.find((item) => item.id === id);
+
     if (!professional) return;
+
     const service = professional.services[0];
-    const scheduleMonth = professional.monthlySchedules?.[0]?.monthYear ?? getCurrentMonthYear();
+
     setProfessionalId(id);
     setServiceId(service?.id ?? 0);
-    setMonthYear(scheduleMonth);
     setSelectedDate('');
     setSelectedTime('');
     setError('');
@@ -319,21 +509,49 @@ const BookingModal = ({
     event.preventDefault();
     setError('');
 
-    if (!clientName.trim() || !phone.trim() || !selectedProfessional || !selectedService || !selectedDate || !selectedTime) {
+    if (
+      !clientName.trim() ||
+      !phone.trim() ||
+      !selectedProfessional ||
+      !selectedService ||
+      !selectedDate ||
+      !selectedTime
+    ) {
       setError('Preencha todos os campos para continuar.');
       return;
     }
 
+    const duration = parseDurationMinutes(selectedService.duration);
     const appointments = loadAppointments();
-    const conflict = appointments.some(
-      (appointment) =>
-        appointment.professionalId === selectedProfessional.id &&
-        appointment.date === selectedDate &&
-        appointment.time === selectedTime,
-    );
+    const selectedStart = toMinutes(selectedTime);
+    const selectedEnd = selectedStart + duration;
+
+    const conflict = appointments.some((appointment) => {
+      if (
+        appointment.professionalId !== selectedProfessional.id ||
+        appointment.date !== selectedDate
+      ) {
+        return false;
+      }
+
+      const appointmentStart = toMinutes(appointment.time);
+      const appointmentDuration = parseDurationMinutes(
+        appointment.duration ?? '60',
+      );
+      const appointmentEnd = appointmentStart + appointmentDuration;
+
+      return rangesOverlap(
+        selectedStart,
+        selectedEnd,
+        appointmentStart,
+        appointmentEnd,
+      );
+    });
 
     if (conflict) {
-      setError('Já existe um agendamento para esse horário com essa profissional. Escolha outro horário.');
+      setError(
+        'Já existe um agendamento nesse intervalo com essa profissional. Escolha outro horário.',
+      );
       return;
     }
 
@@ -352,6 +570,7 @@ const BookingModal = ({
     };
 
     const updatedAppointments = [...appointments, newBooking];
+
     saveAppointments(updatedAppointments);
     setError('');
     setClientName('');
@@ -374,13 +593,22 @@ const BookingModal = ({
         <div className="border-b border-gray-200 bg-white px-6 py-5 flex-shrink-0">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-sm uppercase tracking-[0.2em] text-pink-600">Agendamento</p>
-              <h2 className="text-2xl font-semibold text-gray-900">Reserve seu horário</h2>
+              <p className="text-sm uppercase tracking-[0.2em] text-pink-600">
+                Agendamento
+              </p>
+              <h2 className="text-2xl font-semibold text-gray-900">
+                Reserve seu horário
+              </h2>
               <p className="mt-1 text-sm text-gray-500">
-                Selecione a profissional, serviço, dia e horário disponíveis. Seu agendamento será salvo localmente.
+                Selecione a profissional, serviço, dia e horário disponíveis.
+                Seu agendamento será salvo localmente.
               </p>
             </div>
-            <button onClick={onClose} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-600 transition hover:border-pink-300 hover:text-pink-600">
+
+            <button
+              onClick={onClose}
+              className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-600 transition hover:border-pink-300 hover:text-pink-600"
+            >
               Fechar
             </button>
           </div>
@@ -388,12 +616,21 @@ const BookingModal = ({
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
           <div className="space-y-6">
-            <form id="booking-form" onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-3xl border border-gray-200 bg-white p-5">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4">Dados do cliente</h3>
+            <form
+              id="booking-form"
+              onSubmit={handleSubmit}
+              className="space-y-6"
+            >
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-3xl border border-gray-200 bg-white p-5">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                    Dados do cliente
+                  </h3>
+
                   <div className="space-y-4">
-                    <label className="block text-sm font-medium text-gray-700">Nome</label>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Nome
+                    </label>
                     <input
                       type="text"
                       value={clientName}
@@ -403,12 +640,17 @@ const BookingModal = ({
                       required
                     />
                   </div>
+
                   <div className="space-y-4 mt-4">
-                    <label className="block text-sm font-medium text-gray-700">Telefone</label>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Telefone
+                    </label>
                     <input
                       type="tel"
                       value={phone}
-                      onChange={(event) => setPhone(formatPhone(event.target.value))}
+                      onChange={(event) =>
+                        setPhone(formatPhone(event.target.value))
+                      }
                       className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
                       placeholder="(XX) XXXXX-XXXX"
                       required
@@ -417,12 +659,19 @@ const BookingModal = ({
                 </div>
 
                 <div className="rounded-3xl border border-gray-200 bg-white p-5">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4">Escolha profissional e serviço</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                    Escolha profissional e serviço
+                  </h3>
+
                   <div className="space-y-4">
-                    <label className="block text-sm font-medium text-gray-700">Profissional</label>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Profissional
+                    </label>
                     <select
                       value={professionalId}
-                      onChange={(event) => handleProfessionalChange(event.target.value)}
+                      onChange={(event) =>
+                        handleProfessionalChange(event.target.value)
+                      }
                       className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
                     >
                       {professionals.map((professional) => (
@@ -432,8 +681,11 @@ const BookingModal = ({
                       ))}
                     </select>
                   </div>
+
                   <div className="space-y-4 mt-4">
-                    <label className="block text-sm font-medium text-gray-700">Serviço</label>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Serviço
+                    </label>
                     <select
                       value={serviceId}
                       onChange={(event) => {
@@ -454,10 +706,15 @@ const BookingModal = ({
               </div>
 
               <section className="rounded-3xl border border-gray-200 bg-white p-5">
-                <h3 className="text-sm font-semibold text-gray-900 mb-4">Escolha data e horário</h3>
+                <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                  Escolha data e horário
+                </h3>
+
                 <div className="space-y-4">
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-gray-700">Data</span>
+                    <span className="text-sm font-medium text-gray-700">
+                      Data
+                    </span>
                     <select
                       value={selectedDate}
                       onChange={(event) => {
@@ -469,11 +726,14 @@ const BookingModal = ({
                     >
                       <option value="">Selecione uma data</option>
                       {availableDates.map((item) => {
-                        const displayLabel = item.available ? item.label : `${item.label} (${item.reason})`;
+                        const displayLabel = item.available
+                          ? item.label
+                          : `${item.label} (${item.reason})`;
+
                         return (
-                          <option 
-                            key={item.dateKey} 
-                            value={item.dateKey} 
+                          <option
+                            key={item.dateKey}
+                            value={item.dateKey}
                             disabled={!item.available}
                           >
                             {displayLabel}
@@ -485,7 +745,9 @@ const BookingModal = ({
                 </div>
 
                 <label className="space-y-2 mt-4">
-                  <span className="text-sm font-medium text-gray-700">Horário</span>
+                  <span className="text-sm font-medium text-gray-700">
+                    Horário
+                  </span>
                   <select
                     value={selectedTime}
                     onChange={(event) => setSelectedTime(event.target.value)}
@@ -494,31 +756,56 @@ const BookingModal = ({
                   >
                     <option value="">Selecione um horário</option>
                     {appointmentSlots.map((time) => (
-                      <option key={time} value={time}>{time}</option>
+                      <option key={time} value={time}>
+                        {time}
+                      </option>
                     ))}
                   </select>
                 </label>
 
-                {error && <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+                {error && (
+                  <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">
+                    {error}
+                  </div>
+                )}
               </section>
 
               <section className="rounded-3xl border border-pink-100 bg-pink-50 p-5">
-                <h3 className="text-sm font-semibold text-pink-700">Resumo</h3>
+                <h3 className="text-sm font-semibold text-pink-700">
+                  Resumo
+                </h3>
+
                 <div className="mt-3 space-y-2 text-sm text-gray-700">
                   <p>Profissional: {selectedProfessional?.name}</p>
-                  <p>Serviço: {selectedService?.name || 'Selecione um serviço'}</p>
-                  <p>{selectedDate ? `Data escolhida: ${selectedDate}` : 'Selecione uma data disponível'}</p>
-                  <p>{selectedTime ? `Horário escolhido: ${selectedTime}` : 'Selecione um horário disponível'}</p>
+                  <p>
+                    Serviço:{' '}
+                    {selectedService?.name || 'Selecione um serviço'}
+                  </p>
+                  <p>
+                    {selectedDate
+                      ? `Data escolhida: ${selectedDate}`
+                      : 'Selecione uma data disponível'}
+                  </p>
+                  <p>
+                    {selectedTime
+                      ? `Horário escolhido: ${selectedTime}`
+                      : 'Selecione um horário disponível'}
+                  </p>
                 </div>
               </section>
             </form>
-            </div>
+          </div>
         </div>
 
         <div className="border-t border-gray-200 bg-white px-6 py-4 flex-shrink-0">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-gray-500">{availableCount} dias disponíveis neste mês.</p>
-            <Button type="submit" form="booking-form" size="lg">Confirmar agendamento</Button>
+            <p className="text-sm text-gray-500">
+              {availableCount} dias disponíveis até o mesmo dia do próximo mês.
+            </p>
+
+            <Button type="submit" form="booking-form" size="lg">
+              Confirmar agendamento
+            </Button>
           </div>
         </div>
       </div>

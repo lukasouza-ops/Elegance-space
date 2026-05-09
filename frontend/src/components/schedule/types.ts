@@ -1,9 +1,20 @@
-export type WeekDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+export type WeekDay =
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday'
+  | 'sunday';
 
 export interface WeeklyRule {
   enabled: boolean;
   startTime: string;
   endTime: string;
+  intervalMinutes?: 30 | 60;
+  hasLunchBreak?: boolean;
+  lunchStartTime?: string;
+  lunchEndTime?: string;
 }
 
 export interface ScheduleBlock {
