@@ -10,34 +10,35 @@ interface ProfessionalCardProps {
   onViewSchedule: (professionalId: number) => void;
 }
 
-const ProfessionalCard = ({ professional, onViewSchedule }: ProfessionalCardProps) => {
-  // Imagem placeholder padrão se não houver imagem
-  const defaultImage = 'https://images.unsplash.com/photo-1594744803329-e58b31de8bf5?w=400&h=500&fit=crop';
-  const imageUrl = professional.image || defaultImage;
+const ProfessionalCard = ({
+  professional,
+  onViewSchedule,
+}: ProfessionalCardProps) => {
+  const defaultImage =
+    'https://images.unsplash.com/photo-1594744803329-e58b31de8bf5?w=400&h=500&fit=crop';
 
   return (
-    <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden group">
-      {/* Imagem */}
-      <div className="relative h-64 overflow-hidden">
+    <div className="group overflow-hidden rounded-2xl bg-white shadow-md transition-all duration-300 hover:shadow-xl">
+      <div className="relative h-48 overflow-hidden sm:h-56 md:h-64">
         <img
-          src={imageUrl}
+          src={professional.image || defaultImage}
           alt={professional.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
       </div>
 
-      {/* Conteúdo */}
-      <div className="p-6 text-center">
-        <h3 className="text-xl font-semibold text-gray-800 mb-2">
+      <div className="p-4 text-center sm:p-5 md:p-6">
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 sm:text-xl">
           {professional.name}
         </h3>
-        <p className="text-pink-500 font-medium text-sm uppercase tracking-wide mb-4">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-pink-500 sm:mb-4 sm:text-sm">
           {professional.specialty}
         </p>
         <button
+          type="button"
           onClick={() => onViewSchedule(professional.id)}
-          className="inline-flex items-center justify-center px-5 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-full transition-colors duration-200"
+          className="inline-flex items-center justify-center rounded-full bg-pink-500 px-4 py-2 text-xs font-medium text-white transition-colors duration-200 hover:bg-pink-600 sm:px-5 sm:text-sm"
         >
           Ver agenda
         </button>

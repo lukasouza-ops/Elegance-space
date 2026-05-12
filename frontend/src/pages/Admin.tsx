@@ -670,7 +670,7 @@ const ProfessionalModal = ({
           <form onSubmit={handleSubmit} className="space-y-6">
             {activeTab === 'Dados' && (
               <div className="grid gap-6 lg:grid-cols-2">
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Nome
@@ -710,7 +710,7 @@ const ProfessionalModal = ({
                   </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       URL da Imagem
@@ -723,7 +723,7 @@ const ProfessionalModal = ({
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
                     />
                   </div>
-                  <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 sm:rounded-2xl sm:p-4">
                     <p className="text-sm text-gray-700 font-medium">Resumo</p>
                     <p className="text-sm text-gray-500 mt-2">
                       Nome, especialidade, status e imagem são campos principais da profissional.
@@ -734,11 +734,11 @@ const ProfessionalModal = ({
             )}
 
             {activeTab === 'Serviços' && (
-              <div className="space-y-4">
-                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <div className="space-y-3 sm:space-y-4">
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 sm:rounded-2xl sm:p-4">
                   <p className="text-sm font-medium text-gray-700 mb-2">Serviços vinculados</p>
                   {professional?.services.length ? (
-                    <div className="grid gap-3">
+                    <div className="grid gap-2 sm:gap-3">
                       {professional.services.map((service) => (
                         <div key={service.id} className="rounded-2xl border border-gray-200 bg-white p-4">
                           <div className="flex items-center justify-between gap-3">
@@ -750,7 +750,7 @@ const ProfessionalModal = ({
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">Nenhum serviço vinculado a esta profissional.</p>
+                    <p className="text-xs text-gray-500 sm:text-sm">Nenhum serviço vinculado a esta profissional.</p>
                   )}
                   <p className="text-sm text-gray-500 mt-3">Gerencie serviços no painel principal do Admin.</p>
                 </div>
@@ -878,7 +878,7 @@ const ProfessionalModal = ({
                                 ? 'Dia inteiro'
                                 : `${block.startTime} às ${block.endTime}`}
                             </p>
-                            {block.reason && <p className="text-sm text-gray-500">Motivo: {block.reason}</p>}
+                            {block.reason && <p className="text-xs text-gray-500 sm:text-sm">Motivo: {block.reason}</p>}
                           </div>
                           <button
                             type="button"
@@ -891,7 +891,7 @@ const ProfessionalModal = ({
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">Nenhum bloqueio registrado dentro da janela atual de agenda.</p>
+                    <p className="text-xs text-gray-500 sm:text-sm">Nenhum bloqueio registrado dentro da janela atual de agenda.</p>
                   )}
                 </div>
               </div>
@@ -943,7 +943,7 @@ const ServiceModal = ({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
         <div className="px-6 py-4 border-b">
-          <h3 className="text-lg font-semibold text-gray-800">
+          <h3 className="text-base font-semibold text-gray-800 sm:text-lg">
             {service ? 'Editar Serviço' : 'Novo Serviço'}
           </h3>
         </div>
@@ -1024,6 +1024,7 @@ const Admin = () => {
   const [appointmentTab, setAppointmentTab] = useState<'por-profissional' | 'base-geral'>('por-profissional');
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultSiteConfig);
   const [siteConfigSaved, setSiteConfigSaved] = useState(false);
+  const [adminSection, setAdminSection] = useState<'site' | 'home' | 'professionals' | 'appointments'>('site');
 
   // Filtros para "Por profissional"
   const [professionalDateFilter, setProfessionalDateFilter] = useState<string>('');
@@ -1385,50 +1386,77 @@ const handleDeleteAppointment = (appointmentId: string) => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header Admin */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-serif font-bold text-gray-800">
+      <div className="border-b bg-white shadow-sm">
+        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="font-serif text-2xl font-bold leading-tight text-gray-800 sm:text-2xl">
                 Painel Administrativo
               </h1>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="mt-1 max-w-[190px] text-xs leading-relaxed text-gray-500 sm:max-w-none sm:text-sm">
                 Gerencie profissionais e seus serviços
               </p>
             </div>
             <a
               href="/"
-              className="text-pink-500 hover:text-pink-600 text-sm font-medium"
+              className="shrink-0 rounded-full bg-pink-50 px-3 py-1.5 text-xs font-semibold text-pink-500 hover:bg-pink-100 hover:text-pink-600 sm:text-sm"
             >
-              ← Voltar ao site
+              ← Site
             </a>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-b border-gray-200 bg-white">
+        <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8">
+          <div className="flex gap-2 overflow-x-auto py-3">
+{[
+  { key: 'professionals', label: 'Profissionais' },
+  { key: 'appointments', label: 'Agendamentos' },
+  { key: 'site', label: 'Site e contato' },
+  { key: 'home', label: 'Textos da Home' },
+].map((section) => (
+              <button
+                key={section.key}
+                type="button"
+                onClick={() => setAdminSection(section.key as typeof adminSection)}
+                className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-semibold transition sm:text-sm ${
+                  adminSection === section.key
+                    ? 'bg-pink-500 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {section.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
 
       {/* Configurações do Site */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {adminSection === 'site' && (
+      <div className="mx-auto max-w-7xl px-3 pt-5 sm:px-6 sm:pt-8 lg:px-8">
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
+          <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-gray-800">Configurações do site</h2>
-              <p className="text-sm text-gray-500">
-                Edite os textos da seção de serviços, rodapé e informações de contato.
+              <h2 className="text-base font-semibold text-gray-800 sm:text-lg">Configurações do site</h2>
+              <p className="text-xs text-gray-500 sm:text-sm">
+                Edite nome do site, rodapé e informações de contato.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={handleResetSiteConfig}
-                className="rounded-2xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="rounded-full border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 sm:px-4 sm:text-sm"
               >
                 Restaurar padrão
               </button>
               <button
                 type="button"
                 onClick={handleSaveSiteConfig}
-                className="rounded-2xl bg-pink-500 px-4 py-2 text-sm font-medium text-white hover:bg-pink-600"
+                className="rounded-full bg-pink-500 px-3 py-2 text-xs font-semibold text-white hover:bg-pink-600 sm:px-4 sm:text-sm"
               >
                 Salvar configurações
               </button>
@@ -1441,123 +1469,165 @@ const handleDeleteAppointment = (appointmentId: string) => {
             </div>
           )}
 
-          <div className="grid gap-5 lg:grid-cols-2">
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-gray-800">Rodapé e contato</h3>
+          <div className="grid gap-4 lg:grid-cols-2 sm:gap-5">
+            <div className="space-y-3 sm:space-y-4">
+              <h3 className="text-sm font-semibold text-gray-800">Identidade do site</h3>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Nome do site</label>
+                <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Nome do site</label>
                 <input
                   type="text"
                   value={siteConfig.siteName}
                   onChange={(event) => updateSiteConfig({ siteName: event.target.value })}
-                  className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                  className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100 sm:rounded-2xl sm:px-4 sm:py-3"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Descrição do rodapé</label>
+                <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Descrição do rodapé</label>
                 <textarea
                   value={siteConfig.footerDescription}
                   onChange={(event) => updateSiteConfig({ footerDescription: event.target.value })}
-                  rows={4}
-                  className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                  rows={2}
+                  className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100 sm:rounded-2xl sm:px-4 sm:py-3"
                 />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">E-mail</label>
-                  <input
-                    type="email"
-                    value={siteConfig.contactEmail}
-                    onChange={(event) => updateSiteConfig({ contactEmail: event.target.value })}
-                    className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Telefone</label>
-                  <input
-                    type="text"
-                    value={siteConfig.contactPhone}
-                    onChange={(event) => updateSiteConfig({ contactPhone: event.target.value })}
-                    className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
-                  />
-                </div>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-gray-800">Seção de serviços da Home</h3>
+            <div className="space-y-3 sm:space-y-4">
+              <h3 className="text-sm font-semibold text-gray-800">Contato</h3>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Etiqueta acima do título</label>
+                <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">E-mail</label>
+                <input
+                  type="email"
+                  value={siteConfig.contactEmail}
+                  onChange={(event) => updateSiteConfig({ contactEmail: event.target.value })}
+                  className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100 sm:rounded-2xl sm:px-4 sm:py-3"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Telefone</label>
                 <input
                   type="text"
-                  value={siteConfig.servicesBadge}
-                  onChange={(event) => updateSiteConfig({ servicesBadge: event.target.value })}
-                  className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                  value={siteConfig.contactPhone}
+                  onChange={(event) => updateSiteConfig({ contactPhone: event.target.value })}
+                  className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100 sm:rounded-2xl sm:px-4 sm:py-3"
                 />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Título</label>
-                <input
-                  type="text"
-                  value={siteConfig.servicesTitle}
-                  onChange={(event) => updateSiteConfig({ servicesTitle: event.target.value })}
-                  className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Subtítulo</label>
-                <textarea
-                  value={siteConfig.servicesSubtitle}
-                  onChange={(event) => updateSiteConfig({ servicesSubtitle: event.target.value })}
-                  rows={3}
-                  className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
-                />
-              </div>
-
-              <div className="grid gap-3">
-                {siteConfig.services.map((service, index) => (
-                  <div key={service.id} className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                    <p className="mb-3 text-sm font-semibold text-gray-700">Card {index + 1}</p>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <input
-                        type="text"
-                        value={service.name}
-                        onChange={(event) => updateSiteService(service.id, { name: event.target.value })}
-                        placeholder="Nome do serviço"
-                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
-                      />
-                      <input
-                        type="text"
-                        value={service.description}
-                        onChange={(event) => updateSiteService(service.id, { description: event.target.value })}
-                        placeholder="Descrição"
-                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
-                      />
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           </div>
         </div>
       </div>
+      )}
+
+      {adminSection === 'home' && (
+      <div className="mx-auto max-w-7xl px-3 pt-5 sm:px-6 sm:pt-8 lg:px-8">
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
+          <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-gray-800 sm:text-lg">Textos da Home</h2>
+              <p className="text-xs text-gray-500 sm:text-sm">
+                Edite a seção de serviços exibida na página inicial.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleResetSiteConfig}
+                className="rounded-full border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 sm:px-4 sm:text-sm"
+              >
+                Restaurar padrão
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveSiteConfig}
+                className="rounded-full bg-pink-500 px-3 py-2 text-xs font-semibold text-white hover:bg-pink-600 sm:px-4 sm:text-sm"
+              >
+                Salvar configurações
+              </button>
+            </div>
+          </div>
+
+          {siteConfigSaved && (
+            <div className="mb-4 rounded-2xl border border-green-100 bg-green-50 p-3 text-sm text-green-700">
+              Configurações salvas com sucesso.
+            </div>
+          )}
+
+          <div className="space-y-5">
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Etiqueta acima do título</label>
+                <input
+                  type="text"
+                  value={siteConfig.servicesBadge}
+                  onChange={(event) => updateSiteConfig({ servicesBadge: event.target.value })}
+                  className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100 sm:rounded-2xl sm:px-4 sm:py-3"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Título</label>
+                <input
+                  type="text"
+                  value={siteConfig.servicesTitle}
+                  onChange={(event) => updateSiteConfig({ servicesTitle: event.target.value })}
+                  className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100 sm:rounded-2xl sm:px-4 sm:py-3"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Subtítulo</label>
+                <textarea
+                  value={siteConfig.servicesSubtitle}
+                  onChange={(event) => updateSiteConfig({ servicesSubtitle: event.target.value })}
+                  rows={1}
+                  className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100 sm:rounded-2xl sm:px-4 sm:py-3"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              {siteConfig.services.map((service, index) => (
+                <div key={service.id} className="rounded-xl border border-gray-200 bg-gray-50 p-3 sm:rounded-2xl sm:p-4">
+                  <p className="mb-2 text-xs font-semibold text-gray-700 sm:text-sm">Card {index + 1}</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input
+                      type="text"
+                      value={service.name}
+                      onChange={(event) => updateSiteService(service.id, { name: event.target.value })}
+                      placeholder="Nome do serviço"
+                      className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                    />
+                    <input
+                      type="text"
+                      value={service.description}
+                      onChange={(event) => updateSiteService(service.id, { description: event.target.value })}
+                      placeholder="Descrição"
+                      className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      )}
 
       {/* Lista de Profissionais */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-semibold text-gray-800">
+      {adminSection === 'professionals' && (
+      <div className="mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8 lg:px-8">
+        <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-base font-semibold text-gray-800 sm:text-lg">
             Profissionais ({professionals.length})
           </h2>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-2 sm:gap-3">
             <button
               onClick={handleResetToDefault}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              className="inline-flex items-center rounded-full border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 sm:text-sm"
             >
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -1566,7 +1636,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
             </button>
             <button
               onClick={handleAddProfessional}
-              className="inline-flex items-center px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition-colors"
+              className="inline-flex items-center rounded-full bg-pink-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-pink-600 sm:px-4 sm:text-sm"
           >
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1580,12 +1650,12 @@ const handleDeleteAppointment = (appointmentId: string) => {
           {professionals.map((professional) => (
             <div
               key={professional.id}
-              className="bg-white rounded-xl shadow-sm p-6"
+              className="rounded-2xl bg-white p-4 shadow-sm sm:rounded-xl sm:p-6"
             >
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
-                    <h3 className="text-lg font-semibold text-gray-800">
+                    <h3 className="text-base font-semibold text-gray-800 sm:text-lg">
                       {professional.name}
                     </h3>
                     <span
@@ -1598,11 +1668,11 @@ const handleDeleteAppointment = (appointmentId: string) => {
                       {professional.status === 'active' ? 'Ativo' : 'Inativo'}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-500">{professional.specialty}</p>
-                  <p className="text-sm text-pink-600 mt-1">
+                  <p className="text-xs text-gray-500 sm:text-sm">{professional.specialty}</p>
+                  <p className="mt-1 text-xs text-pink-600 sm:text-sm">
                     {professional.services.length} serviço(s) vinculado(s)
                   </p>
-                  <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
+                  <p className="mt-2 flex items-center gap-1 text-[11px] text-gray-400 sm:text-xs">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
@@ -1611,24 +1681,24 @@ const handleDeleteAppointment = (appointmentId: string) => {
                       : formatScheduleSummary(professional.schedule)}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => {
                       setSelectedProfessional(professional);
                     }}
-                    className="px-3 py-1.5 text-sm text-pink-600 hover:bg-pink-50 rounded-lg transition-colors"
+                    className="rounded-full px-3 py-1.5 text-xs text-pink-600 transition-colors hover:bg-pink-50 sm:text-sm"
                   >
                     Ver serviços
                   </button>
                   <button
                     onClick={() => handleEditProfessional(professional)}
-                    className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="rounded-full px-3 py-1.5 text-xs text-gray-600 transition-colors hover:bg-gray-100 sm:text-sm"
                   >
                     Editar
                   </button>
                   <button
                     onClick={() => handleDeleteProfessional(professional.id)}
-                    className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="rounded-full px-3 py-1.5 text-xs text-red-600 transition-colors hover:bg-red-50 sm:text-sm"
                   >
                     Excluir
                   </button>
@@ -1711,12 +1781,14 @@ const handleDeleteAppointment = (appointmentId: string) => {
           ))}
         </div>
       </div>
+      )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {adminSection === 'appointments' && (
+      <div className="mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8 lg:px-8">
+        <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-gray-800">Agendamentos</h2>
-            <p className="text-sm text-gray-500">
+            <h2 className="text-base font-semibold text-gray-800 sm:text-lg">Agendamentos</h2>
+            <p className="text-xs text-gray-500 sm:text-sm">
               Visualize os agendamentos realizados por profissional ou na base geral.
             </p>
           </div>
@@ -1746,7 +1818,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
             <button
               type="button"
               onClick={refreshAppointments}
-              className="rounded-full px-4 py-2 text-sm font-medium text-pink-600 border border-pink-200 bg-white hover:bg-pink-50"
+              className="rounded-full border border-pink-200 bg-white px-3 py-2 text-xs font-semibold text-pink-600 hover:bg-pink-50 sm:px-4 sm:text-sm"
             >
               Atualizar lista
             </button>
@@ -1756,7 +1828,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
         {appointmentTab === 'por-profissional' ? (
           <div className="space-y-6">
             {/* Filtros para "Por profissional" */}
-            <div className="rounded-3xl border border-gray-200 bg-white p-6">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:rounded-3xl sm:p-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                   <div>
@@ -1778,7 +1850,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
                     Limpar filtro
                   </button>
                 </div>
-                <p className="text-sm text-gray-500">
+                <p className="text-xs text-gray-500 sm:text-sm">
                   {professionalDateFilter ? `Mostrando agendamentos para ${professionalDateFilter}` : 'Mostrando todos os agendamentos'}
                 </p>
               </div>
@@ -1796,11 +1868,11 @@ const handleDeleteAppointment = (appointmentId: string) => {
                   );
 
                   return (
-                    <div key={professional.id} className="rounded-3xl border border-gray-200 bg-white p-6">
+                    <div key={professional.id} className="rounded-2xl border border-gray-200 bg-white p-4 sm:rounded-3xl sm:p-6">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <h3 className="text-lg font-semibold text-gray-800">{professional.name}</h3>
-                          <p className="text-sm text-gray-500">{professional.specialty}</p>
+                          <h3 className="text-base font-semibold text-gray-800 sm:text-lg">{professional.name}</h3>
+                          <p className="text-xs text-gray-500 sm:text-sm">{professional.specialty}</p>
                         </div>
                         <span className="inline-flex rounded-full bg-pink-50 px-3 py-1 text-sm font-medium text-pink-700">
                           {professionalAppointments.length} agendamento(s)
@@ -1815,21 +1887,21 @@ const handleDeleteAppointment = (appointmentId: string) => {
                             <div key={appointment.id} className="rounded-3xl border border-gray-200 bg-pink-50 p-4">
                               <div className="grid gap-2 sm:grid-cols-2">
                                 <div>
-                                  <p className="text-sm text-gray-500">Cliente</p>
+                                  <p className="text-xs text-gray-500 sm:text-sm">Cliente</p>
                                   <p className="text-sm font-medium text-gray-800">{appointment.clientName}</p>
                                 </div>
                                 <div>
-                                  <p className="text-sm text-gray-500">Telefone</p>
+                                  <p className="text-xs text-gray-500 sm:text-sm">Telefone</p>
                                   <p className="text-sm font-medium text-gray-800">{appointment.phone}</p>
                                 </div>
                                 <div>
-                                  <p className="text-sm text-gray-500">Serviço</p>
+                                  <p className="text-xs text-gray-500 sm:text-sm">Serviço</p>
                                   <p className="text-sm font-medium text-gray-800">
   {appointment.serviceName} • {getServiceDuration(appointment)} min
 </p>
                                 </div>
                                 <div>
-                                  <p className="text-sm text-gray-500">Data / Horário</p>
+                                  <p className="text-xs text-gray-500 sm:text-sm">Data / Horário</p>
                                   <p className="text-sm font-medium text-gray-800">{appointment.date} • {appointment.time}</p>
                                 </div>
                               </div>
@@ -1846,10 +1918,10 @@ const handleDeleteAppointment = (appointmentId: string) => {
         ) : (
           <div className="space-y-6">
             {/* Filtros para "Base geral" */}
-            <div className="rounded-3xl border border-gray-200 bg-white p-6">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:rounded-3xl sm:p-6">
               <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-800">Filtros</h3>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="text-base font-semibold text-gray-800 sm:text-lg">Filtros</h3>
                   <button
                     type="button"
                     onClick={clearGeneralFilters}
@@ -1951,13 +2023,13 @@ const handleDeleteAppointment = (appointmentId: string) => {
             </div>
 
             {/* Tabela e botão de exportação */}
-            <div className="rounded-3xl border border-gray-200 bg-white p-6">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:rounded-3xl sm:p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Base geral de agendamentos</h3>
+                <h3 className="text-base font-semibold text-gray-800 sm:text-lg">Base geral de agendamentos</h3>
                 <button
                   type="button"
                   onClick={exportToCSV}
-                  className="inline-flex items-center px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition-colors"
+                  className="inline-flex items-center rounded-full bg-pink-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-pink-600 sm:px-4 sm:text-sm"
                 >
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -2017,6 +2089,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
           </div>
         )}
       </div>
+      )}
 
       {/* Modal de Profissional */}
       {showProfessionalModal && (

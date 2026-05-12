@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import Button from '../common/Button';
 import { MonthlySchedule } from '../schedule/types';
 
 interface Service {
@@ -475,17 +474,40 @@ const BookingModal = ({
     [selectedProfessional],
   );
 
-  const availableDates = useMemo(
-    () =>
-      selectedSchedule
-        ? getAvailableDates(selectedSchedule, selectedProfessional?.vacation)
-        : [],
-    [selectedSchedule, selectedProfessional],
-  );
-
   const selectedService = selectedProfessional?.services.find(
     (service) => service.id === serviceId,
   );
+
+  const availableDates = useMemo(() => {
+    if (!selectedSchedule || !selectedProfessional || !selectedService) {
+      return [];
+    }
+
+    const duration = parseDurationMinutes(selectedService.duration);
+    const appointments = loadAppointments();
+
+    return getAvailableDates(
+      selectedSchedule,
+      selectedProfessional.vacation,
+    ).map((item) => {
+      if (!item.available) return item;
+
+      const slots = getAvailableTimeSlots(
+        selectedSchedule,
+        item.dateKey,
+        duration,
+        appointments,
+        selectedProfessional.id,
+        selectedProfessional.vacation,
+      );
+
+      return {
+        ...item,
+        available: slots.length > 0,
+        reason: slots.length > 0 ? item.reason : 'Sem horários disponíveis',
+      };
+    });
+  }, [selectedSchedule, selectedProfessional, selectedService]);
 
   const appointmentSlots = useMemo(() => {
     const duration = parseDurationMinutes(selectedService?.duration ?? '60');
@@ -614,61 +636,62 @@ const BookingModal = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 sm:p-6">
-      <div className="w-full max-w-6xl max-h-[90vh] overflow-hidden rounded-[32px] bg-white shadow-2xl ring-1 ring-black/5 flex flex-col">
-        <div className="border-b border-gray-200 bg-white px-6 py-5 flex-shrink-0">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm uppercase tracking-[0.2em] text-pink-600">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-1.5 pt-2 sm:items-center sm:p-6">
+      <div className="flex max-h-[96vh] w-full max-w-[92vw] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 sm:max-w-5xl">
+        <div className="flex-shrink-0 border-b border-gray-200 bg-white px-3 py-3 sm:px-6 sm:py-5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-pink-600 sm:text-sm">
                 Agendamento
               </p>
-              <h2 className="text-2xl font-semibold text-gray-900">
+              <h2 className="mt-0.5 text-lg font-semibold leading-tight text-gray-900 sm:text-2xl">
                 Reserve seu horário
               </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                Selecione a profissional, serviço, dia e horário disponíveis.
-                Seu agendamento será salvo localmente.
+              <p className="mt-0.5 max-w-md text-[11px] leading-snug text-gray-500 sm:text-sm">
+                Selecione profissional, serviço, data e horário.
               </p>
             </div>
 
             <button
+              type="button"
               onClick={onClose}
-              className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-600 transition hover:border-pink-300 hover:text-pink-600"
+              aria-label="Fechar agendamento"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-lg leading-none text-gray-500 transition hover:border-pink-300 hover:text-pink-600"
             >
-              Fechar
+              ×
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          <div className="space-y-6">
+        <div className="flex-1 overflow-y-auto px-3 py-3 sm:px-6 sm:py-5">
+          <div className="space-y-2.5 sm:space-y-6">
             <form
               id="booking-form"
               onSubmit={handleSubmit}
-              className="space-y-6"
+              className="space-y-2.5 sm:space-y-6"
             >
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-3xl border border-gray-200 bg-white p-5">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4">
+              <div className="grid gap-2 md:grid-cols-2">
+                <div className="rounded-xl border border-gray-200 bg-white p-3 sm:p-5">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">
                     Dados do cliente
                   </h3>
 
-                  <div className="space-y-4">
-                    <label className="block text-sm font-medium text-gray-700">
+                  <div className="space-y-2.5">
+                    <label className="block text-xs font-medium text-gray-700">
                       Nome
                     </label>
                     <input
                       type="text"
                       value={clientName}
                       onChange={(event) => setClientName(event.target.value)}
-                      className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                      className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
                       placeholder="Seu nome"
                       required
                     />
                   </div>
 
-                  <div className="space-y-4 mt-4">
-                    <label className="block text-sm font-medium text-gray-700">
+                  <div className="mt-2 space-y-2.5">
+                    <label className="block text-xs font-medium text-gray-700">
                       Telefone
                     </label>
                     <input
@@ -677,131 +700,237 @@ const BookingModal = ({
                       onChange={(event) =>
                         setPhone(formatPhone(event.target.value))
                       }
-                      className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                      className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
                       placeholder="(XX) XXXXX-XXXX"
                       required
                     />
                   </div>
                 </div>
 
-                <div className="rounded-3xl border border-gray-200 bg-white p-5">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                <div className="rounded-xl border border-gray-200 bg-white p-3 sm:p-5">
+                  <h3 className="mb-3 text-sm font-semibold text-gray-900">
                     Escolha profissional e serviço
                   </h3>
 
-                  <div className="space-y-4">
-                    <label className="block text-sm font-medium text-gray-700">
+                  <div className="space-y-2.5">
+                    <span className="block text-xs font-medium text-gray-700">
                       Profissional
-                    </label>
-                    <select
-                      value={professionalId}
-                      onChange={(event) =>
-                        handleProfessionalChange(event.target.value)
-                      }
-                      className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
-                    >
-                      {professionals.map((professional) => (
-                        <option key={professional.id} value={professional.id}>
-                          {professional.name} — {professional.specialty}
-                        </option>
-                      ))}
-                    </select>
+                    </span>
+
+                    <div className="grid gap-2">
+                      {professionals.map((professional) => {
+                        const isSelected = professional.id === professionalId;
+
+                        return (
+                          <button
+                            key={professional.id}
+                            type="button"
+                            onClick={() => handleProfessionalChange(String(professional.id))}
+                            className={`flex items-center gap-2 rounded-xl border p-2 text-left transition ${
+                              isSelected
+                                ? 'border-pink-500 bg-pink-50 ring-2 ring-pink-100'
+                                : 'border-gray-200 bg-white hover:border-pink-300 hover:bg-pink-50'
+                            }`}
+                          >
+                            <img
+                              src={professional.image}
+                              alt={professional.name}
+                              className="h-9 w-9 shrink-0 rounded-full object-cover object-top"
+                            />
+
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-semibold text-gray-900">
+                                {professional.name}
+                              </span>
+                              <span className="block truncate text-[11px] text-gray-500">
+                                {professional.specialty}
+                              </span>
+                            </span>
+
+                            {isSelected && (
+                              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-pink-500 text-xs text-white">
+                                ✓
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  <div className="space-y-4 mt-4">
-                    <label className="block text-sm font-medium text-gray-700">
+                  <div className="mt-3 space-y-2.5">
+                    <span className="block text-xs font-medium text-gray-700">
                       Serviço
-                    </label>
-                    <select
-                      value={serviceId}
-                      onChange={(event) => {
-                        setServiceId(Number(event.target.value));
-                        setSelectedDate('');
-                        setSelectedTime('');
-                      }}
-                      className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
-                    >
-                      {selectedProfessional?.services.map((service) => (
-                        <option key={service.id} value={service.id}>
-                          {service.name} • {service.duration} min
-                        </option>
-                      ))}
-                    </select>
+                    </span>
+
+                    <div className="grid gap-2">
+                      {selectedProfessional?.services.map((service) => {
+                        const isSelected = service.id === serviceId;
+
+                        return (
+                          <button
+                            key={service.id}
+                            type="button"
+                            onClick={() => {
+                              setServiceId(service.id);
+                              setSelectedDate('');
+                              setSelectedTime('');
+                              setError('');
+                            }}
+                            className={`rounded-xl border p-2 text-left transition ${
+                              isSelected
+                                ? 'border-pink-500 bg-pink-500 text-white shadow-md shadow-pink-100'
+                                : 'border-gray-200 bg-white text-gray-900 hover:border-pink-300 hover:bg-pink-50'
+                            }`}
+                          >
+                            <span className="block truncate text-sm font-semibold">
+                              {service.name}
+                            </span>
+                            <span
+                              className={`mt-0.5 block text-[11px] ${
+                                isSelected ? 'text-pink-50' : 'text-gray-500'
+                              }`}
+                            >
+                              {service.duration} min • {service.price}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {!selectedProfessional?.services.length && (
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-500">
+                        Esta profissional ainda não possui serviços cadastrados.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              <section className="rounded-3xl border border-gray-200 bg-white p-5">
-                <h3 className="text-sm font-semibold text-gray-900 mb-4">
-                  Escolha data e horário
-                </h3>
+              <section className="rounded-xl border border-gray-200 bg-white p-3 sm:p-5">
+                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      Escolha data e horário
+                    </h3>
+                    <p className="mt-1 text-xs text-gray-500 sm:text-sm">
+                      Toque em uma data e depois no horário.
+                    </p>
+                  </div>
 
-                <div className="space-y-4">
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-gray-700">
-                      Data
+                  {selectedService && (
+                    <span className="w-fit rounded-full bg-pink-50 px-3 py-1 text-xs font-medium text-pink-700">
+                      {selectedService.duration} min
                     </span>
-                    <select
-                      value={selectedDate}
-                      onChange={(event) => {
-                        setSelectedDate(event.target.value);
-                        setSelectedTime('');
-                      }}
-                      disabled={availableDates.length === 0}
-                      className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-pink-500 focus:ring-2 focus:ring-pink-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <option value="">Selecione uma data</option>
-                      {availableDates.map((item) => {
-                        const displayLabel = item.available
-                          ? item.label
-                          : `${item.label} (${item.reason})`;
-
-                        return (
-                          <option
-                            key={item.dateKey}
-                            value={item.dateKey}
-                            disabled={!item.available}
-                          >
-                            {displayLabel}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </label>
+                  )}
                 </div>
 
-                <label className="space-y-2 mt-4">
+                <div className="space-y-2.5">
+                  <span className="text-sm font-medium text-gray-700">
+                    Data
+                  </span>
+
+                  {availableDates.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                      {availableDates.map((item) => {
+                        const isSelected = selectedDate === item.dateKey;
+
+                        return (
+                          <button
+                            key={item.dateKey}
+                            type="button"
+                            disabled={!item.available}
+                            onClick={() => {
+                              setSelectedDate(item.dateKey);
+                              setSelectedTime('');
+                              setError('');
+                            }}
+                            className={`rounded-xl border px-2 py-1.5 text-left transition sm:px-4 sm:py-3 ${
+                              isSelected
+                                ? 'border-pink-500 bg-pink-500 text-white shadow-md shadow-pink-200'
+                                : item.available
+                                  ? 'border-gray-200 bg-white text-gray-800 hover:border-pink-300 hover:bg-pink-50'
+                                  : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 opacity-70'
+                            }`}
+                          >
+                            <span className="block text-xs font-semibold sm:text-sm">
+                              {item.label}
+                            </span>
+                            <span
+                              className={`mt-0.5 block text-[11px] sm:mt-1 sm:text-xs ${
+                                isSelected
+                                  ? 'text-pink-50'
+                                  : item.available
+                                    ? 'text-pink-600'
+                                    : 'text-gray-400'
+                              }`}
+                            >
+                              {item.available ? 'Disponível' : item.reason}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-500">
+                      Nenhuma data encontrada para esta profissional.
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 space-y-2.5">
                   <span className="text-sm font-medium text-gray-700">
                     Horário
                   </span>
-                  <select
-                    value={selectedTime}
-                    onChange={(event) => setSelectedTime(event.target.value)}
-                    disabled={!selectedDate || appointmentSlots.length === 0}
-                    className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-pink-500 focus:ring-2 focus:ring-pink-100 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <option value="">Selecione um horário</option>
-                    {appointmentSlots.map((time) => (
-                      <option key={time} value={time}>
-                        {time}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+
+                  {!selectedDate ? (
+                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-500">
+                      Selecione uma data para ver os horários disponíveis.
+                    </div>
+                  ) : appointmentSlots.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+                      {appointmentSlots.map((time) => {
+                        const isSelected = selectedTime === time;
+
+                        return (
+                          <button
+                            key={time}
+                            type="button"
+                            onClick={() => {
+                              setSelectedTime(time);
+                              setError('');
+                            }}
+                            className={`rounded-xl border px-2 py-1.5 text-xs font-semibold transition sm:px-4 sm:py-3 sm:text-sm ${
+                              isSelected
+                                ? 'border-pink-500 bg-pink-500 text-white shadow-md shadow-pink-200'
+                                : 'border-gray-200 bg-white text-gray-800 hover:border-pink-300 hover:bg-pink-50 hover:text-pink-700'
+                            }`}
+                          >
+                            {time}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-500">
+                      Não há horários disponíveis para esta data.
+                    </div>
+                  )}
+                </div>
 
                 {error && (
-                  <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">
+                  <div className="mt-3 rounded-2xl bg-red-50 p-3 text-xs text-red-700">
                     {error}
                   </div>
                 )}
               </section>
 
-              <section className="rounded-3xl border border-pink-100 bg-pink-50 p-5">
-                <h3 className="text-sm font-semibold text-pink-700">
+              <section className="hidden rounded-xl border border-pink-100 bg-pink-50 p-3 sm:block sm:p-5">
+                <h3 className="text-xs font-semibold text-pink-700">
                   Resumo
                 </h3>
 
-                <div className="mt-3 space-y-2 text-sm text-gray-700">
+                <div className="mt-2 space-y-1 text-[11px] text-gray-700 sm:space-y-2 sm:text-sm">
                   <p>Profissional: {selectedProfessional?.name}</p>
                   <p>
                     Serviço:{' '}
@@ -823,15 +952,19 @@ const BookingModal = ({
           </div>
         </div>
 
-        <div className="border-t border-gray-200 bg-white px-6 py-4 flex-shrink-0">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-gray-500">
+        <div className="flex-shrink-0 border-t border-gray-200 bg-white px-3 py-2 sm:px-6 sm:py-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs leading-relaxed text-gray-500 sm:text-sm">
               {availableCount} dias disponíveis até o mesmo dia do próximo mês.
             </p>
 
-            <Button type="submit" form="booking-form" size="lg">
+            <button
+              type="submit"
+              form="booking-form"
+              className="w-full rounded-full bg-pink-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-200 transition hover:bg-pink-600 sm:w-auto"
+            >
               Confirmar agendamento
-            </Button>
+            </button>
           </div>
         </div>
       </div>

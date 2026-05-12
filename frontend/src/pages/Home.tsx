@@ -129,10 +129,10 @@ const Home = () => {
         const parsed = JSON.parse(savedData);
         setProfessionals(parsed.filter((p: Professional) => p.status === 'active'));
       } catch {
-        setProfessionals(defaultProfessionals.filter(p => p.status === 'active'));
+        setProfessionals(defaultProfessionals.filter((p) => p.status === 'active'));
       }
     } else {
-      setProfessionals(defaultProfessionals.filter(p => p.status === 'active'));
+      setProfessionals(defaultProfessionals.filter((p) => p.status === 'active'));
     }
 
     setSiteConfig(loadSiteConfig());
@@ -145,10 +145,7 @@ const Home = () => {
       return;
     }
 
-    const element = document.getElementById(sectionId);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleViewSchedule = (professionalId: number) => {
@@ -165,15 +162,9 @@ const Home = () => {
     setBookingToast('Agendamento confirmado com sucesso!');
   };
 
-  const clearToast = () => {
-    setBookingToast('');
-  };
-
   useEffect(() => {
     if (!bookingToast) return;
-    const timeout = window.setTimeout(() => {
-      setBookingToast('');
-    }, 4000);
+    const timeout = window.setTimeout(() => setBookingToast(''), 4000);
     return () => window.clearTimeout(timeout);
   }, [bookingToast]);
 
@@ -182,43 +173,60 @@ const Home = () => {
       <Navbar onNavigate={handleNavigate} />
 
       {bookingToast && (
-        <div className="fixed right-4 top-24 z-50 w-full max-w-xs rounded-3xl border border-pink-200 bg-pink-50 p-4 shadow-xl shadow-pink-200/30">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-pink-500 text-white">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
+        <div className="fixed left-1/2 top-20 z-50 w-[calc(100%-2rem)] max-w-[280px] -translate-x-1/2 sm:left-auto sm:right-4 sm:max-w-sm sm:translate-x-0">
+          <div className="overflow-hidden rounded-3xl border border-pink-100 bg-white shadow-2xl shadow-pink-200/40 ring-1 ring-black/5">
+            <div className="h-1 bg-pink-500" />
+
+            <div className="flex items-start gap-3 p-3 sm:p-4">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-pink-500 text-white shadow-md shadow-pink-200">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold leading-tight text-gray-900">
+                  Agendamento confirmado
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                  Seu horário foi reservado com sucesso.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setBookingToast('')}
+                aria-label="Fechar aviso"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-lg leading-none text-gray-400 transition hover:bg-pink-50 hover:text-pink-500"
+              >
+                ×
+              </button>
             </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-pink-700">Agendamento confirmado</p>
-              <p className="mt-1 text-sm text-pink-800">{bookingToast}</p>
-            </div>
-            <button onClick={clearToast} className="text-pink-600 hover:text-pink-800 text-sm font-medium">
-              Fechar
-            </button>
           </div>
         </div>
       )}
 
-      <section id="home" className="pt-24 pb-16 md:pt-32 md:pb-24 px-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center">
-            <span className="inline-block px-4 py-1.5 bg-pink-100 text-pink-600 rounded-full text-sm font-medium mb-6">
+      <section id="home" className="px-4 pb-10 pt-20 sm:pb-16 sm:pt-28 md:pb-24 md:pt-32">
+        <div className="mx-auto max-w-6xl">
+          <div className="mx-auto max-w-md text-center md:max-w-3xl">
+            <span className="mb-4 inline-block rounded-full bg-pink-100 px-3 py-1 text-xs font-medium text-pink-600 sm:mb-6 sm:px-4 sm:py-1.5 sm:text-sm">
               ✨ Sistema de Agendamento
             </span>
-            <h1 className="text-4xl md:text-6xl font-serif font-bold text-gray-800 mb-6 leading-tight">
-              Descubra a{' '}
-              <span className="text-pink-500">beleza</span> que existe em você
+
+            <h1 className="mb-4 font-serif text-[30px] font-bold leading-[1.12] text-gray-800 sm:text-4xl md:mb-6 md:text-6xl">
+              Descubra a <span className="text-pink-500">beleza</span> que existe em você
             </h1>
-            <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto mb-8 leading-relaxed">
+
+            <p className="mx-auto mb-6 max-w-sm text-[15px] leading-relaxed text-gray-600 sm:text-lg md:mb-8 md:max-w-2xl md:text-xl">
               Agende seus serviços de beleza de forma simples e rápida.
               Profissionais especializadas prontas para transformar seu visual.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" onClick={() => setBookingOpen(true)}>
+
+            <div className="mx-auto flex max-w-xs flex-col gap-3 sm:max-w-none sm:flex-row sm:justify-center sm:gap-4">
+              <Button onClick={() => setBookingOpen(true)} className="w-full sm:w-auto">
                 Agendar agora
               </Button>
-              <Button variant="outline" size="lg" onClick={() => handleNavigate('professionals')}>
+              <Button variant="outline" onClick={() => handleNavigate('professionals')} className="w-full sm:w-auto">
                 Ver profissionais
               </Button>
             </div>
@@ -226,21 +234,21 @@ const Home = () => {
         </div>
       </section>
 
-      <section id="professionals" className="py-16 md:py-20 px-4 bg-white">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <span className="inline-block px-4 py-1.5 bg-pink-50 text-pink-500 rounded-full text-sm font-medium mb-4">
+      <section id="professionals" className="bg-white px-4 py-10 sm:py-16 md:py-20">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-8 text-center sm:mb-12">
+            <span className="mb-3 inline-block rounded-full bg-pink-50 px-3 py-1 text-xs font-medium text-pink-500 sm:mb-4 sm:px-4 sm:py-1.5 sm:text-sm">
               Nossa Equipe
             </span>
-            <h2 className="text-3xl md:text-4xl font-serif font-bold text-gray-800 mb-4">
+            <h2 className="mb-3 font-serif text-2xl font-bold leading-tight text-gray-800 sm:text-3xl md:mb-4 md:text-4xl">
               Profissionais Especializadas
             </h2>
-            <p className="text-gray-600 max-w-xl mx-auto">
+            <p className="mx-auto max-w-sm text-sm leading-relaxed text-gray-600 sm:max-w-xl sm:text-base">
               Conte com profissionais experientes e dedicadas para cuidar da sua beleza.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 gap-5 sm:gap-6 md:grid-cols-3 md:gap-8">
             {professionals.map((professional) => (
               <ProfessionalCard
                 key={professional.id}
@@ -252,52 +260,51 @@ const Home = () => {
         </div>
       </section>
 
-      <section id="services" className="py-16 md:py-20 px-4 bg-gradient-to-r from-pink-50 to-purple-50">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <span className="inline-block px-4 py-1.5 bg-pink-100 text-pink-600 rounded-full text-sm font-medium mb-4">
+      <section id="services" className="bg-gradient-to-r from-pink-50 to-purple-50 px-4 py-10 sm:py-16 md:py-20">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-8 text-center sm:mb-12">
+            <span className="mb-3 inline-block rounded-full bg-pink-100 px-3 py-1 text-xs font-medium text-pink-600 sm:mb-4 sm:px-4 sm:py-1.5 sm:text-sm">
               {siteConfig.servicesBadge}
             </span>
-            <h2 className="text-3xl md:text-4xl font-serif font-bold text-gray-800 mb-4">
+            <h2 className="mb-3 font-serif text-2xl font-bold leading-tight text-gray-800 sm:text-3xl md:mb-4 md:text-4xl">
               {siteConfig.servicesTitle}
             </h2>
-            <p className="text-gray-600 max-w-xl mx-auto">
+            <p className="mx-auto max-w-sm text-sm leading-relaxed text-gray-600 sm:max-w-xl sm:text-base">
               {siteConfig.servicesSubtitle}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
             {siteConfig.services.map((service) => (
               <div
                 key={service.id}
-                className="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow duration-300"
+                className="rounded-2xl bg-white p-5 shadow-md transition-shadow duration-300 hover:shadow-lg sm:rounded-xl sm:p-6"
               >
-                <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center mb-4">
-                  <svg className="w-6 h-6 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-pink-100 sm:h-12 sm:w-12">
+                  <svg className="h-5 w-5 text-pink-500 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">{service.name}</h3>
-                <p className="text-gray-600 text-sm">{service.description}</p>
+                <h3 className="mb-2 text-base font-semibold text-gray-800 sm:text-lg">{service.name}</h3>
+                <p className="text-sm leading-relaxed text-gray-600">{service.description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section id="booking" className="py-16 md:py-20 px-4 bg-pink-500">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-serif font-bold text-white mb-4">
+      <section id="booking" className="bg-pink-500 px-4 py-10 sm:py-16 md:py-20">
+        <div className="mx-auto max-w-4xl text-center">
+          <h2 className="mb-3 font-serif text-2xl font-bold text-white sm:text-3xl md:mb-4 md:text-4xl">
             Pronto para se transformar?
           </h2>
-          <p className="text-pink-100 text-lg mb-8 max-w-xl mx-auto">
+          <p className="mx-auto mb-6 max-w-sm text-sm leading-relaxed text-pink-100 sm:max-w-xl sm:text-lg md:mb-8">
             Agende seu horário agora e descubra uma nova versão de si mesma.
             Nossa equipe está pronta para atender você.
           </p>
           <Button
             variant="outline"
-            size="lg"
-            className="bg-white text-pink-500 hover:bg-pink-50 border-white"
+            className="border-white bg-white text-pink-500 hover:bg-pink-50"
             onClick={() => setBookingOpen(true)}
           >
             Agendar horário
