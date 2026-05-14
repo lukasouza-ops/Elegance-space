@@ -1,5 +1,4 @@
 ﻿import { useState, useEffect } from 'react';
-import ScheduleBlockForm from '../components/schedule/ScheduleBlockForm';
 import { MonthlySchedule, ScheduleBlock, WeeklyRule, WeekDay } from '../components/schedule/types';
 
 // ============================================
@@ -335,6 +334,16 @@ const weeklyDayLabels: Record<WeekDay, string> = {
   sunday: 'Domingo',
 };
 
+const dayLabels: Record<WeekDay, string> = {
+  monday: 'Seg',
+  tuesday: 'Ter',
+  wednesday: 'Qua',
+  thursday: 'Qui',
+  friday: 'Sex',
+  saturday: 'Sáb',
+  sunday: 'Dom',
+};
+
 const weekDayOrder: WeekDay[] = [
   'monday',
   'tuesday',
@@ -352,6 +361,9 @@ const WeeklyScheduleEditor = ({
   weeklyRules: Record<WeekDay, WeeklyRule>;
   onChange: (rules: Record<WeekDay, WeeklyRule>) => void;
 }) => {
+  const firstEnabledDay = weekDayOrder.find((day) => weeklyRules[day]?.enabled) || 'monday';
+  const [openDay, setOpenDay] = useState<WeekDay>(firstEnabledDay);
+
   const updateDay = (day: WeekDay, update: Partial<WeeklyRule>) => {
     onChange({
       ...weeklyRules,
@@ -362,119 +374,252 @@ const WeeklyScheduleEditor = ({
     });
   };
 
+  const openedRule = weeklyRules[openDay];
+
   return (
-    <div className="space-y-5">
-      <div className="rounded-2xl border border-pink-100 bg-pink-50 p-4">
-        <p className="text-sm font-semibold text-pink-700">Liberação automática</p>
-        <p className="mt-1 text-sm text-gray-600">
-          A agenda dos clientes será liberada automaticamente de hoje até o mesmo dia do próximo mês.
-          Amanhã, um novo dia será liberado sozinho. Não precisa liberar mês manualmente.
+    <div className="space-y-3">
+      <div className="rounded-xl border border-pink-100 bg-pink-50 px-3 py-2">
+        <p className="text-xs font-semibold text-pink-700">Liberação automática</p>
+        <p className="mt-0.5 text-[11px] leading-snug text-gray-600">
+          A agenda libera de hoje até o mesmo dia do próximo mês.
         </p>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-5">
-        <h3 className="text-sm font-semibold text-gray-800 mb-4">
-          Configuração semanal de dias e horários
-        </h3>
+      <div className="rounded-xl border border-gray-200 bg-white p-2.5">
+        <p className="mb-2 text-xs font-semibold text-gray-800">
+          Toque no dia para editar
+        </p>
 
-        <div className="space-y-3">
+        <div className="grid grid-cols-4 gap-1.5">
           {weekDayOrder.map((day) => {
-            const rule = weeklyRules[day];
+            const active = openDay === day;
+            const enabled = weeklyRules[day]?.enabled;
 
             return (
-              <div
+              <button
                 key={day}
-                className="grid gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4 xl:grid-cols-[1fr_auto_130px_130px_150px_auto_130px_130px]"
+                type="button"
+                onClick={() => setOpenDay(day)}
+                className={`rounded-full px-2 py-1.5 text-[11px] font-semibold transition ${
+                  active
+                    ? 'bg-pink-500 text-white'
+                    : enabled
+                      ? 'bg-pink-50 text-pink-700'
+                      : 'bg-gray-100 text-gray-500'
+                }`}
               >
-                <div className="flex items-center">
-                  <p className="text-sm font-medium text-gray-700">{weeklyDayLabels[day]}</p>
-                </div>
-
-                <label className="flex items-center gap-2 text-sm text-gray-600">
-                  <input
-                    type="checkbox"
-                    checked={rule.enabled}
-                    onChange={(event) => updateDay(day, { enabled: event.target.checked })}
-                    className="h-4 w-4 rounded border-gray-300 text-pink-500 focus:ring-pink-500"
-                  />
-                  Trabalha
-                </label>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Início</label>
-                  <input
-                    type="time"
-                    value={rule.startTime}
-                    onChange={(event) => updateDay(day, { startTime: event.target.value })}
-                    disabled={!rule.enabled}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 disabled:cursor-not-allowed disabled:opacity-60 focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Fim</label>
-                  <input
-                    type="time"
-                    value={rule.endTime}
-                    onChange={(event) => updateDay(day, { endTime: event.target.value })}
-                    disabled={!rule.enabled}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 disabled:cursor-not-allowed disabled:opacity-60 focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Intervalo</label>
-                  <select
-                    value={rule.intervalMinutes || 30}
-                    onChange={(event) => updateDay(day, { intervalMinutes: Number(event.target.value) as 30 | 60 })}
-                    disabled={!rule.enabled}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 disabled:cursor-not-allowed disabled:opacity-60 focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
-                  >
-                    <option value={30}>30 em 30 min</option>
-                    <option value={60}>1 em 1 hora</option>
-                  </select>
-                </div>
-
-                <label className="flex items-center gap-2 text-sm text-gray-600">
-                  <input
-                    type="checkbox"
-                    checked={rule.hasLunchBreak || false}
-                    onChange={(event) => updateDay(day, { hasLunchBreak: event.target.checked })}
-                    disabled={!rule.enabled}
-                    className="h-4 w-4 rounded border-gray-300 text-pink-500 focus:ring-pink-500 disabled:cursor-not-allowed disabled:opacity-60"
-                  />
-                  Almoço
-                </label>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Início almoço</label>
-                  <input
-                    type="time"
-                    value={rule.lunchStartTime || '12:00'}
-                    onChange={(event) => updateDay(day, { lunchStartTime: event.target.value })}
-                    disabled={!rule.enabled || !rule.hasLunchBreak}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 disabled:cursor-not-allowed disabled:opacity-60 focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Fim almoço</label>
-                  <input
-                    type="time"
-                    value={rule.lunchEndTime || '13:00'}
-                    onChange={(event) => updateDay(day, { lunchEndTime: event.target.value })}
-                    disabled={!rule.enabled || !rule.hasLunchBreak}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 disabled:cursor-not-allowed disabled:opacity-60 focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
-                  />
-                </div>
-              </div>
+                {dayLabels[day]}
+              </button>
             );
           })}
+        </div>
+
+        <div className="mt-3 rounded-2xl border border-gray-100 bg-gray-50 p-3">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-gray-800">{weeklyDayLabels[openDay]}</p>
+            <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+              <input
+                type="checkbox"
+                checked={openedRule.enabled}
+                onChange={(event) => updateDay(openDay, { enabled: event.target.checked })}
+                className="h-4 w-4 rounded border-gray-300 text-pink-500 focus:ring-pink-500"
+              />
+              Trabalha
+            </label>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-gray-500">Início</label>
+              <input
+                type="time"
+                value={openedRule.startTime}
+                onChange={(event) => updateDay(openDay, { startTime: event.target.value })}
+                disabled={!openedRule.enabled}
+                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none disabled:opacity-50 focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-gray-500">Fim</label>
+              <input
+                type="time"
+                value={openedRule.endTime}
+                onChange={(event) => updateDay(openDay, { endTime: event.target.value })}
+                disabled={!openedRule.enabled}
+                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none disabled:opacity-50 focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="mb-1 block text-[11px] font-medium text-gray-500">Intervalo</label>
+              <select
+                value={openedRule.intervalMinutes || 30}
+                onChange={(event) =>
+                  updateDay(openDay, { intervalMinutes: Number(event.target.value) as 30 | 60 })
+                }
+                disabled={!openedRule.enabled}
+                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none disabled:opacity-50 focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+              >
+                <option value={30}>30 em 30 min</option>
+                <option value={60}>1 em 1 hora</option>
+              </select>
+            </div>
+          </div>
+
+          <label className="mt-3 flex items-center gap-2 text-xs font-medium text-gray-600">
+            <input
+              type="checkbox"
+              checked={openedRule.hasLunchBreak || false}
+              onChange={(event) => updateDay(openDay, { hasLunchBreak: event.target.checked })}
+              disabled={!openedRule.enabled}
+              className="h-4 w-4 rounded border-gray-300 text-pink-500 disabled:opacity-50 focus:ring-pink-500"
+            />
+            Bloquear almoço
+          </label>
+
+          {openedRule.hasLunchBreak && (
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-gray-500">Início almoço</label>
+                <input
+                  type="time"
+                  value={openedRule.lunchStartTime || '12:00'}
+                  onChange={(event) => updateDay(openDay, { lunchStartTime: event.target.value })}
+                  disabled={!openedRule.enabled}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none disabled:opacity-50 focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-gray-500">Fim almoço</label>
+                <input
+                  type="time"
+                  value={openedRule.lunchEndTime || '13:00'}
+                  onChange={(event) => updateDay(openDay, { lunchEndTime: event.target.value })}
+                  disabled={!openedRule.enabled}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none disabled:opacity-50 focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
+
+
+const CompactScheduleBlockForm = ({
+  availableDates,
+  onAdd,
+}: {
+  availableDates: { dateKey: string; label: string }[];
+  onAdd: (block: ScheduleBlock) => void;
+}) => {
+  const [date, setDate] = useState(availableDates[0]?.dateKey || '');
+  const [type, setType] = useState<'full-day' | 'time-range'>('full-day');
+  const [startTime, setStartTime] = useState('12:00');
+  const [endTime, setEndTime] = useState('13:00');
+  const [reason, setReason] = useState('');
+
+  useEffect(() => {
+    if (!date && availableDates[0]?.dateKey) setDate(availableDates[0].dateKey);
+  }, [availableDates, date]);
+
+  const handleSubmit = () => {
+    if (!date) return;
+
+    onAdd({
+      id: `${Date.now()}`,
+      date,
+      type,
+      startTime: type === 'time-range' ? startTime : '',
+      endTime: type === 'time-range' ? endTime : '',
+      reason,
+    });
+
+    setReason('');
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="mb-1 block text-[11px] font-medium text-gray-500">Data</label>
+          <select
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
+            className="h-9 w-full rounded-xl border border-gray-300 bg-white px-2 text-xs text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+          >
+            {availableDates.map((item) => (
+              <option key={item.dateKey} value={item.dateKey}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-[11px] font-medium text-gray-500">Tipo</label>
+          <select
+            value={type}
+            onChange={(event) => setType(event.target.value as 'full-day' | 'time-range')}
+            className="h-9 w-full rounded-xl border border-gray-300 bg-white px-2 text-xs text-gray-900 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+          >
+            <option value="full-day">Dia inteiro</option>
+            <option value="time-range">Horário</option>
+          </select>
+        </div>
+      </div>
+
+      {type === 'time-range' && (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="mb-1 block text-[11px] font-medium text-gray-500">Início</label>
+            <input
+              type="time"
+              value={startTime}
+              onChange={(event) => setStartTime(event.target.value)}
+              className="h-9 w-full rounded-xl border border-gray-300 bg-white px-2 text-xs outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[11px] font-medium text-gray-500">Fim</label>
+            <input
+              type="time"
+              value={endTime}
+              onChange={(event) => setEndTime(event.target.value)}
+              className="h-9 w-full rounded-xl border border-gray-300 bg-white px-2 text-xs outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+            />
+          </div>
+        </div>
+      )}
+
+      <div>
+        <label className="mb-1 block text-[11px] font-medium text-gray-500">Motivo</label>
+        <input
+          type="text"
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          placeholder="Opcional"
+          className="h-9 w-full rounded-xl border border-gray-300 bg-white px-3 text-xs outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={handleSubmit}
+        disabled={!date}
+        className="h-9 w-full rounded-xl bg-pink-500 text-xs font-semibold text-white hover:bg-pink-600 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Adicionar bloqueio
+      </button>
+    </div>
+  );
+};
+
 
 // Modal para editar/adicionar profissional
 const ProfessionalModal = ({
@@ -574,16 +719,6 @@ const ProfessionalModal = ({
     return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
   };
 
-  const dayLabels: Record<WeekDay, string> = {
-    monday: 'Seg',
-    tuesday: 'Ter',
-    wednesday: 'Qua',
-    thursday: 'Qui',
-    friday: 'Sex',
-    saturday: 'Sáb',
-    sunday: 'Dom',
-  };
-
   const weekdayFromIndex: WeekDay[] = [
     'sunday',
     'monday',
@@ -627,34 +762,34 @@ const ProfessionalModal = ({
   const visibleBlocks = allBlocks.filter((block) => availableBlockDateKeys.includes(block.date));
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-gray-200">
-        <div className="px-6 py-4 border-b bg-white z-10">
-          <div className="flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-1.5 sm:items-center sm:p-4">
+      <div className="flex max-h-[calc(100dvh-0.75rem)] w-full max-w-[340px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl sm:max-h-[90vh] sm:max-w-4xl sm:rounded-2xl">
+        <div className="z-10 border-b bg-white px-3 py-2 sm:px-5 sm:py-4">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-xl font-semibold text-gray-800">
+              <h3 className="text-sm font-semibold leading-tight text-gray-800 sm:text-xl">
                 {professional ? 'Editar Profissional' : 'Nova Profissional'}
               </h3>
-              <p className="text-sm text-gray-500 mt-1">
-                Gerencie os dados, serviços e disponibilidade semanal.
+              <p className="mt-0.5 text-[11px] leading-snug text-gray-500 sm:text-sm">
+                Gerencie dados, serviços e disponibilidade.
               </p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-700"
+              className="shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold text-gray-400 hover:bg-gray-100 hover:text-gray-700 sm:text-sm"
             >
               Fechar
             </button>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                className={`shrink-0 rounded-full px-2.5 py-1.5 text-[10.5px] font-medium transition sm:px-4 sm:py-2 sm:text-sm ${
                   activeTab === tab.key
                     ? 'bg-pink-500 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -666,43 +801,43 @@ const ProfessionalModal = ({
           </div>
         </div>
 
-        <div className="overflow-y-auto px-6 py-5 flex-1">
-          <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="flex-1 overflow-y-auto px-3 py-2.5 sm:px-5 sm:py-5">
+          <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-6">
             {activeTab === 'Dados' && (
-              <div className="grid gap-6 lg:grid-cols-2">
-                <div className="space-y-3 sm:space-y-4">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="space-y-2.5 sm:space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">
                       Nome
                     </label>
                     <input
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                      className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100 sm:rounded-lg"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">
                       Especialidade
                     </label>
                     <input
                       type="text"
                       value={specialty}
                       onChange={(e) => setSpecialty(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                      className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100 sm:rounded-lg"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">
                       Status
                     </label>
                     <select
                       value={status}
                       onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                      className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100 sm:rounded-lg"
                     >
                       <option value="active">Ativo</option>
                       <option value="inactive">Inativo</option>
@@ -710,22 +845,22 @@ const ProfessionalModal = ({
                   </div>
                 </div>
 
-                <div className="space-y-3 sm:space-y-4">
+                <div className="space-y-2.5 sm:space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      URL da Imagem
+                    <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">
+                      URL da imagem
                     </label>
                     <input
                       type="url"
                       value={image}
                       onChange={(e) => setImage(e.target.value)}
                       placeholder="https://exemplo.com/foto.jpg"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                      className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100 sm:rounded-lg"
                     />
                   </div>
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 sm:rounded-2xl sm:p-4">
-                    <p className="text-sm text-gray-700 font-medium">Resumo</p>
-                    <p className="text-sm text-gray-500 mt-2">
+                    <p className="text-xs font-medium text-gray-700 sm:text-sm">Resumo</p>
+                    <p className="mt-1.5 text-xs leading-snug text-gray-500 sm:text-sm">
                       Nome, especialidade, status e imagem são campos principais da profissional.
                     </p>
                   </div>
@@ -734,26 +869,28 @@ const ProfessionalModal = ({
             )}
 
             {activeTab === 'Serviços' && (
-              <div className="space-y-3 sm:space-y-4">
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 sm:rounded-2xl sm:p-4">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Serviços vinculados</p>
-                  {professional?.services.length ? (
-                    <div className="grid gap-2 sm:gap-3">
-                      {professional.services.map((service) => (
-                        <div key={service.id} className="rounded-2xl border border-gray-200 bg-white p-4">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="font-medium text-gray-800">{service.name}</p>
-                            <span className="text-xs text-gray-500">{service.duration} min</span>
-                          </div>
-                          <p className="text-sm text-gray-500 mt-1">{service.price}</p>
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                <p className="mb-2 text-xs font-semibold text-gray-700">Serviços vinculados</p>
+                {professional?.services.length ? (
+                  <div className="space-y-2">
+                    {professional.services.map((service) => (
+                      <div key={service.id} className="rounded-xl border border-gray-100 bg-white p-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800">
+                            {service.name}
+                          </p>
+                          <span className="shrink-0 rounded-full bg-pink-50 px-2 py-0.5 text-[11px] font-medium text-pink-600">
+                            {service.duration}
+                          </span>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-gray-500 sm:text-sm">Nenhum serviço vinculado a esta profissional.</p>
-                  )}
-                  <p className="text-sm text-gray-500 mt-3">Gerencie serviços no painel principal do Admin.</p>
-                </div>
+                        <p className="mt-1 text-xs font-medium text-gray-600">{service.price}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">Nenhum serviço vinculado.</p>
+                )}
+                <p className="mt-2 text-[11px] text-gray-500">Adicione ou edite serviços no card da profissional.</p>
               </div>
             )}
 
@@ -794,7 +931,7 @@ const ProfessionalModal = ({
 
                   <div className="mt-5 grid gap-4 md:grid-cols-2">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">
                         Início das férias
                       </label>
                       <input
@@ -807,12 +944,12 @@ const ProfessionalModal = ({
                           }))
                         }
                         disabled={!vacation.enabled}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100 sm:rounded-lg disabled:cursor-not-allowed disabled:opacity-60"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">
                         Fim das férias
                       </label>
                       <input
@@ -825,7 +962,7 @@ const ProfessionalModal = ({
                           }))
                         }
                         disabled={!vacation.enabled}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100 sm:rounded-lg disabled:cursor-not-allowed disabled:opacity-60"
                       />
                     </div>
                   </div>
@@ -846,52 +983,67 @@ const ProfessionalModal = ({
             )}
 
             {activeTab === 'Bloqueios' && (
-              <div className="space-y-6">
-                <div className="rounded-2xl border border-pink-100 bg-pink-50 p-4">
-                  <p className="text-sm font-semibold text-pink-700">
-                    Bloqueios dentro da agenda liberada
-                  </p>
-                  <p className="mt-1 text-sm text-gray-600">
-                    Só é possível bloquear datas disponíveis entre hoje e o mesmo dia do próximo mês.
-                    Amanhã, um novo dia será liberado automaticamente.
+              <div className="space-y-3">
+                <div className="rounded-xl border border-pink-100 bg-pink-50 px-3 py-2">
+                  <p className="text-xs font-semibold text-pink-700">Bloqueios da agenda</p>
+                  <p className="mt-0.5 text-[11px] leading-snug text-gray-600">
+                    Bloqueie dias ou horários dentro da janela liberada.
                   </p>
                 </div>
 
-                <div className="bg-white border border-gray-200 rounded-2xl p-5">
-                  <h3 className="text-sm font-semibold text-gray-800 mb-4">Adicionar bloqueio</h3>
-                  <ScheduleBlockForm
+                <div className="rounded-xl border border-gray-200 bg-white p-2.5">
+                  <h3 className="mb-2 text-xs font-semibold text-gray-800">Adicionar bloqueio</h3>
+                  <CompactScheduleBlockForm
                     availableDates={availableBlockDates}
                     onAdd={handleAddBlock}
                   />
                 </div>
 
-                <div className="bg-white border border-gray-200 rounded-2xl p-5">
-                  <h3 className="text-sm font-semibold text-gray-800 mb-4">Bloqueios cadastrados</h3>
+                <div className="rounded-xl border border-gray-200 bg-white p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <h3 className="text-xs font-semibold text-gray-800">Bloqueios cadastrados</h3>
+                    <span className="rounded-full bg-pink-50 px-2 py-0.5 text-[11px] font-semibold text-pink-600">
+                      {visibleBlocks.length}
+                    </span>
+                  </div>
+
                   {visibleBlocks.length ? (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {visibleBlocks.map((block) => (
-                        <div key={block.id} className="rounded-2xl border border-gray-200 p-4 bg-gray-50 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div>
-                            <p className="text-sm font-semibold text-gray-800">{block.date}</p>
-                            <p className="text-sm text-gray-600">
-                              {block.type === 'full-day'
-                                ? 'Dia inteiro'
-                                : `${block.startTime} às ${block.endTime}`}
-                            </p>
-                            {block.reason && <p className="text-xs text-gray-500 sm:text-sm">Motivo: {block.reason}</p>}
+                        <div
+                          key={block.id}
+                          className="rounded-xl border border-gray-100 bg-gray-50 p-2.5"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-gray-800">{block.date}</p>
+                              <p className="mt-0.5 text-xs text-gray-600">
+                                {block.type === 'full-day'
+                                  ? 'Dia inteiro'
+                                  : `${block.startTime} às ${block.endTime}`}
+                              </p>
+                              {block.reason && (
+                                <p className="mt-1 line-clamp-2 text-[11px] text-gray-500">
+                                  {block.reason}
+                                </p>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveBlock(block.id)}
+                              className="shrink-0 rounded-full px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-50"
+                            >
+                              Excluir
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveBlock(block.id)}
-                            className="inline-flex items-center justify-center px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
-                          >
-                            Excluir
-                          </button>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-gray-500 sm:text-sm">Nenhum bloqueio registrado dentro da janela atual de agenda.</p>
+                    <p className="rounded-xl bg-gray-50 p-3 text-xs text-gray-500">
+                      Nenhum bloqueio registrado na janela atual.
+                    </p>
                   )}
                 </div>
               </div>
@@ -899,18 +1051,18 @@ const ProfessionalModal = ({
           </form>
         </div>
 
-        <div className="px-6 py-4 border-t bg-white flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <div className="flex flex-col gap-2 border-t bg-white px-3 py-2.5 sm:flex-row sm:items-center sm:justify-end sm:px-5 sm:py-4">
           <button
             type="button"
             onClick={onClose}
-            className="w-full sm:w-auto px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 sm:w-auto sm:rounded-lg"
           >
             Cancelar
           </button>
           <button
             type="button"
             onClick={handleSubmit}
-            className="w-full sm:w-auto px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600"
+            className="w-full rounded-xl bg-pink-500 px-4 py-2 text-sm font-semibold text-white hover:bg-pink-600 sm:w-auto sm:rounded-lg"
           >
             Salvar
           </button>
@@ -940,65 +1092,65 @@ const ServiceModal = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-        <div className="px-6 py-4 border-b">
-          <h3 className="text-base font-semibold text-gray-800 sm:text-lg">
-            {service ? 'Editar Serviço' : 'Novo Serviço'}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3">
+      <div className="w-full max-w-[320px] overflow-hidden rounded-2xl bg-white shadow-xl">
+        <div className="border-b px-4 py-3">
+          <h3 className="text-sm font-semibold text-gray-800">
+            {service ? 'Editar serviço' : 'Novo serviço'}
           </h3>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+
+        <form onSubmit={handleSubmit} className="space-y-3 p-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nome do Serviço
-            </label>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Serviço</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+              className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
               required
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Duração
-            </label>
-            <input
-              type="number"
-              min="1"
-step="1"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              placeholder="60"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-              required
-            />
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Duração</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={duration}
+                onChange={(e) => setDuration(e.target.value)}
+                placeholder="60"
+                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Preço</label>
+              <input
+                type="text"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="R$ 100"
+                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100"
+                required
+              />
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Preço
-            </label>
-            <input
-              type="text"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder="Ex: R$ 100,00"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-              required
-            />
-          </div>
-          <div className="flex gap-3 pt-4">
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              className="rounded-xl border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600"
+              className="rounded-xl bg-pink-500 px-4 py-2 text-sm font-semibold text-white hover:bg-pink-600"
             >
               Salvar
             </button>
@@ -1470,7 +1622,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
           )}
 
           <div className="grid gap-4 lg:grid-cols-2 sm:gap-5">
-            <div className="space-y-3 sm:space-y-4">
+            <div className="space-y-2.5 sm:space-y-4">
               <h3 className="text-sm font-semibold text-gray-800">Identidade do site</h3>
 
               <div>
@@ -1494,7 +1646,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
               </div>
             </div>
 
-            <div className="space-y-3 sm:space-y-4">
+            <div className="space-y-2.5 sm:space-y-4">
               <h3 className="text-sm font-semibold text-gray-800">Contato</h3>
 
               <div>
@@ -1619,15 +1771,15 @@ const handleDeleteAppointment = (appointmentId: string) => {
 
       {/* Lista de Profissionais */}
       {adminSection === 'professionals' && (
-      <div className="mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8 lg:px-8">
+      <div className="mx-auto w-full max-w-md px-3 py-5 sm:max-w-7xl sm:px-6 sm:py-8 lg:px-8">
         <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-base font-semibold text-gray-800 sm:text-lg">
             Profissionais ({professionals.length})
           </h2>
-          <div className="flex flex-wrap gap-2 sm:gap-3">
+          <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap sm:gap-3">
             <button
               onClick={handleResetToDefault}
-              className="inline-flex items-center rounded-full border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 sm:text-sm"
+              className="inline-flex w-full items-center justify-center rounded-full border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 sm:w-auto sm:text-sm"
             >
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -1636,7 +1788,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
             </button>
             <button
               onClick={handleAddProfessional}
-              className="inline-flex items-center rounded-full bg-pink-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-pink-600 sm:px-4 sm:text-sm"
+              className="inline-flex w-full items-center justify-center rounded-full bg-pink-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-pink-600 sm:w-auto sm:px-4 sm:text-sm"
           >
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1650,11 +1802,11 @@ const handleDeleteAppointment = (appointmentId: string) => {
           {professionals.map((professional) => (
             <div
               key={professional.id}
-              className="rounded-2xl bg-white p-4 shadow-sm sm:rounded-xl sm:p-6"
+              className="w-full overflow-hidden rounded-2xl bg-white p-3.5 shadow-sm sm:rounded-xl sm:p-6"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <h3 className="text-base font-semibold text-gray-800 sm:text-lg">
                       {professional.name}
                     </h3>
@@ -1672,7 +1824,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
                   <p className="mt-1 text-xs text-pink-600 sm:text-sm">
                     {professional.services.length} serviço(s) vinculado(s)
                   </p>
-                  <p className="mt-2 flex items-center gap-1 text-[11px] text-gray-400 sm:text-xs">
+                  <p className="mt-2 flex items-start gap-1 break-words text-[11px] leading-relaxed text-gray-400 sm:text-xs">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
@@ -1681,24 +1833,24 @@ const handleDeleteAppointment = (appointmentId: string) => {
                       : formatScheduleSummary(professional.schedule)}
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
                   <button
                     onClick={() => {
                       setSelectedProfessional(professional);
                     }}
-                    className="rounded-full px-3 py-1.5 text-xs text-pink-600 transition-colors hover:bg-pink-50 sm:text-sm"
+                    className="rounded-full px-2 py-1.5 text-center text-xs text-pink-600 transition-colors hover:bg-pink-50 sm:px-3 sm:text-sm"
                   >
                     Ver serviços
                   </button>
                   <button
                     onClick={() => handleEditProfessional(professional)}
-                    className="rounded-full px-3 py-1.5 text-xs text-gray-600 transition-colors hover:bg-gray-100 sm:text-sm"
+                    className="rounded-full px-2 py-1.5 text-center text-xs text-gray-600 transition-colors hover:bg-gray-100 sm:px-3 sm:text-sm"
                   >
                     Editar
                   </button>
                   <button
                     onClick={() => handleDeleteProfessional(professional.id)}
-                    className="rounded-full px-3 py-1.5 text-xs text-red-600 transition-colors hover:bg-red-50 sm:text-sm"
+                    className="rounded-full px-2 py-1.5 text-center text-xs text-red-600 transition-colors hover:bg-red-50 sm:px-3 sm:text-sm"
                   >
                     Excluir
                   </button>
@@ -1707,72 +1859,59 @@ const handleDeleteAppointment = (appointmentId: string) => {
 
               {/* Serviços da Profissional Selecionada */}
               {selectedProfessional?.id === professional.id && (
-                <div className="mt-6 pt-6 border-t">
-                  <div className="flex justify-between items-center mb-4">
-                    <h4 className="text-sm font-medium text-gray-700">
+                <div className="mt-4 border-t pt-4">
+                  <div className="mb-3 flex flex-col gap-2">
+                    <h4 className="text-sm font-semibold text-gray-700">
                       Serviços de {professional.name}
                     </h4>
                     <button
                       onClick={() => handleAddService(professional.id)}
-                      className="text-sm text-pink-500 hover:text-pink-600 font-medium"
+                      className="w-full rounded-full bg-pink-50 px-3 py-2 text-center text-xs font-semibold text-pink-600 hover:bg-pink-100"
                     >
                       + Adicionar serviço
                     </button>
                   </div>
 
                   {professional.services.length === 0 ? (
-                    <p className="text-sm text-gray-500 italic">
+                    <p className="rounded-xl bg-gray-50 p-3 text-xs italic text-gray-500">
                       Nenhum serviço cadastrado para esta profissional.
                     </p>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-gray-50 rounded-lg">
-                          <tr>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                              Serviço
-                            </th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                              Duração
-                            </th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                              Preço
-                            </th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
-                              Ações
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {professional.services.map((service) => (
-                            <tr key={service.id}>
-                              <td className="px-4 py-3 text-sm text-gray-900">
+                    <div className="space-y-2">
+                      {professional.services.map((service) => (
+                        <div
+                          key={service.id}
+                          className="rounded-2xl border border-gray-100 bg-gray-50 p-3"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <h5 className="line-clamp-2 text-sm font-semibold leading-snug text-gray-800">
                                 {service.name}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-gray-600">
-                                {service.duration} min
-                              </td>
-                              <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                                {service.price}
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <button
-                                  onClick={() => handleEditService(service)}
-                                  className="text-sm text-pink-600 hover:text-pink-800 mr-3"
-                                >
-                                  Editar
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteService(service.id)}
-                                  className="text-sm text-red-600 hover:text-red-800"
-                                >
-                                  Excluir
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                              </h5>
+                              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+                                <span>{service.duration}</span>
+                                <span>•</span>
+                                <span className="font-medium text-gray-700">{service.price}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex shrink-0 flex-col items-end gap-1">
+                              <button
+                                onClick={() => handleEditService(service)}
+                                className="rounded-full px-2 py-1 text-xs font-medium text-pink-600 hover:bg-pink-50"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleDeleteService(service.id)}
+                                className="rounded-full px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-50"
+                              >
+                                Excluir
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -1784,7 +1923,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
       )}
 
       {adminSection === 'appointments' && (
-      <div className="mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8 lg:px-8">
+      <div className="mx-auto max-w-7xl px-2.5 py-4 sm:px-6 sm:py-8 lg:px-8">
         <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-base font-semibold text-gray-800 sm:text-lg">Agendamentos</h2>
@@ -1832,7 +1971,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">
                       Filtrar por data
                     </label>
                     <input
@@ -1897,7 +2036,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
                                 <div>
                                   <p className="text-xs text-gray-500 sm:text-sm">Serviço</p>
                                   <p className="text-sm font-medium text-gray-800">
-  {appointment.serviceName} • {getServiceDuration(appointment)} min
+  {appointment.serviceName} • {getServiceDuration(appointment)}
 </p>
                                 </div>
                                 <div>
@@ -1932,7 +2071,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+                    <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Cliente</label>
                     <input
                       type="text"
                       value={clientFilter}
@@ -1942,7 +2081,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                    <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Telefone</label>
                     <input
                       type="text"
                       value={phoneFilter}
@@ -1952,7 +2091,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Profissional</label>
+                    <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Profissional</label>
                     <select
                       value={professionalFilter}
                       onChange={(e) => setProfessionalFilter(e.target.value)}
@@ -1965,7 +2104,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Serviço</label>
+                    <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Serviço</label>
                     <select
                       value={serviceFilter}
                       onChange={(e) => setServiceFilter(e.target.value)}
@@ -1978,7 +2117,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                    <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Data</label>
                     <input
                       type="date"
                       value={dateFilter}
@@ -1987,7 +2126,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Horário</label>
+                    <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Horário</label>
                     <input
                       type="text"
                       value={timeFilter}
@@ -1997,7 +2136,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Duração</label>
+                    <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Duração</label>
                     <select
                       value={durationFilter}
                       onChange={(e) => setDurationFilter(e.target.value)}
@@ -2010,7 +2149,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Criado em</label>
+                    <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Criado em</label>
                     <input
                       type="date"
                       value={createdAtFilter}
