@@ -1,13 +1,15 @@
 ﻿import { useState, useEffect } from 'react';
+import { supabase } from '../services/supabase';
 import { MonthlySchedule, ScheduleBlock, WeeklyRule, WeekDay } from '../components/schedule/types';
 
 // ============================================
 // CONSTANTES
 // ============================================
 
-const STORAGE_KEY = 'elegance_space_professionals';
-const APPOINTMENT_STORAGE_KEY = 'elegance_space_appointments';
-const SITE_CONFIG_STORAGE_KEY = 'elegance_space_site_config';
+const APP_STATE_TABLE = 'site_config';
+const APP_STATE_ID = 'elegance-space-admin-state';
+const PROFESSIONAL_PHOTOS_BUCKET = 'professional-photos';
+const DEFAULT_PROFESSIONAL_IMAGE = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=500&fit=crop';
 
 const getCurrentMonthYear = () => new Date().toISOString().slice(0, 7);
 
@@ -33,7 +35,7 @@ const createMonthlySchedule = (monthYear: string): MonthlySchedule => ({
 // ============================================
 
 interface Service {
-  id: number;
+  id: string | number;
   name: string;
   duration: string;
   price: string;
@@ -50,7 +52,7 @@ interface DaySchedule {
 }
 
 interface SiteService {
-  id: number;
+  id: string | number;
   name: string;
   description: string;
 }
@@ -83,7 +85,7 @@ interface VacationPeriod {
 }
 
 interface Professional {
-  id: number;
+  id: string | number;
   name: string;
   specialty: string;
   status: 'active' | 'inactive';
@@ -98,9 +100,9 @@ interface Appointment {
   id: string;
   clientName: string;
   phone: string;
-  professionalId: number;
+  professionalId: string | number;
   professionalName: string;
-  serviceId: number;
+  serviceId: string | number;
   serviceName: string;
   date: string;
   time: string;
@@ -211,6 +213,387 @@ const defaultSiteConfig: SiteConfig = {
     { id: 4, name: 'Massagem Relaxante', description: 'Bem-estar e relaxamento' },
   ],
 };
+
+
+// ============================================
+// SUPABASE HELPERS
+// ============================================
+
+type DatabaseProfessional = {
+  id: string;
+  name: string;
+  specialty: string | null;
+  status: string | null;
+  image: string | null;
+};
+
+type DatabaseService = {
+  id: string;
+  professional_id: string;
+  name: string;
+  duration: number | string | null;
+  price: number | string | null;
+};
+
+type DatabaseWeeklySchedule = {
+  professional_id: string;
+  week_day: WeekDay;
+  enabled: boolean | null;
+  start_time: string | null;
+  end_time: string | null;
+  lunch_start: string | null;
+  lunch_end: string | null;
+  interval_minutes: number | null;
+};
+
+type DatabaseScheduleBlock = {
+  id: string;
+  professional_id: string;
+  block_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  reason: string | null;
+};
+
+type DatabaseAppointment = {
+  id: string;
+  client_name: string;
+  phone: string | null;
+  professional_id: string;
+  professional_name?: string | null;
+  service_id: string | null;
+  service_name?: string | null;
+  appointment_date: string;
+  appointment_time: string;
+  status?: string | null;
+  created_at?: string | null;
+  professionals?: { name: string | null } | null;
+  services?: { name: string | null; duration: number | string | null } | null;
+};
+
+const hasSupabaseConfig = Boolean(
+  import.meta.env.VITE_SUPABASE_URL &&
+    import.meta.env.VITE_SUPABASE_ANON_KEY &&
+    !String(import.meta.env.VITE_SUPABASE_ANON_KEY).includes('COLE_AQUI')
+);
+
+
+const isValidUuid = (value: string | number) =>
+  typeof value === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
+
+const uploadProfessionalImage = async (file: File) => {
+  const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+  const filePath = `professionals/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+
+  const { error } = await supabase.storage
+    .from(PROFESSIONAL_PHOTOS_BUCKET)
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: file.type || 'image/jpeg',
+    });
+
+  if (error) throw error;
+
+  const { data } = supabase.storage
+    .from(PROFESSIONAL_PHOTOS_BUCKET)
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
+};
+
+
+const toStatusForApp = (status?: string | null): 'active' | 'inactive' => {
+  if (!status) return 'active';
+  const normalized = status.toLowerCase();
+  return normalized === 'inactive' || normalized === 'inativo' ? 'inactive' : 'active';
+};
+
+const toStatusForDatabase = (status: 'active' | 'inactive') => {
+  return status === 'active' ? 'active' : 'inactive';
+};
+
+const formatPriceFromDatabase = (price: number | string | null) => {
+  if (price === null || price === undefined || price === '') return '';
+  if (typeof price === 'number') {
+    return price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+  return price.startsWith('R$') ? price : price;
+};
+
+const parseDurationToNumber = (duration: string) => {
+  const value = Number(String(duration).replace(/\D/g, ''));
+  return Number.isFinite(value) && value > 0 ? value : 30;
+};
+
+const parsePriceToNumber = (price: string) => {
+  const normalized = String(price)
+    .replace(/[^\d,.-]/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+
+  const value = Number(normalized);
+  return Number.isFinite(value) ? value : 0;
+};
+
+const weeklyRulesToLegacySchedule = (rules: Record<WeekDay, WeeklyRule>): WorkSchedule => ({
+  monday: rules.monday,
+  tuesday: rules.tuesday,
+  wednesday: rules.wednesday,
+  thursday: rules.thursday,
+  friday: rules.friday,
+  saturday: rules.saturday,
+  sunday: rules.sunday,
+});
+
+const buildMonthlySchedulesFromDatabase = (
+  weeklyRules: Record<WeekDay, WeeklyRule>,
+  blocks: ScheduleBlock[],
+): MonthlySchedule[] => [
+  {
+    monthYear: getCurrentMonthYear(),
+    weeklyRules,
+    blocks,
+    released: true,
+  },
+];
+
+const mapDatabaseProfessional = (
+  professional: DatabaseProfessional,
+  services: DatabaseService[],
+  weeklySchedules: DatabaseWeeklySchedule[],
+  blocks: DatabaseScheduleBlock[],
+): Professional => {
+  const weeklyRules = createDefaultWeeklyRules();
+
+  weeklySchedules
+    .filter((rule) => rule.professional_id === professional.id)
+    .forEach((rule) => {
+      if (!rule.week_day || !weeklyRules[rule.week_day]) return;
+
+      weeklyRules[rule.week_day] = {
+        ...weeklyRules[rule.week_day],
+        enabled: Boolean(rule.enabled),
+        startTime: rule.start_time?.slice(0, 5) || weeklyRules[rule.week_day].startTime,
+        endTime: rule.end_time?.slice(0, 5) || weeklyRules[rule.week_day].endTime,
+        intervalMinutes: (rule.interval_minutes === 60 ? 60 : 30) as 30 | 60,
+        hasLunchBreak: Boolean(rule.lunch_start && rule.lunch_end),
+        lunchStartTime: rule.lunch_start?.slice(0, 5) || '12:00',
+        lunchEndTime: rule.lunch_end?.slice(0, 5) || '13:00',
+      };
+    });
+
+  const professionalBlocks: ScheduleBlock[] = blocks
+    .filter((block) => block.professional_id === professional.id)
+    .map((block) => ({
+      id: block.id,
+      date: block.block_date,
+      type: block.start_time && block.end_time ? 'time-range' : 'full-day',
+      startTime: block.start_time?.slice(0, 5) || '',
+      endTime: block.end_time?.slice(0, 5) || '',
+      reason: block.reason || '',
+    }));
+
+  return {
+    id: professional.id,
+    name: professional.name,
+    specialty: professional.specialty || '',
+    status: toStatusForApp(professional.status),
+    image: professional.image || DEFAULT_PROFESSIONAL_IMAGE,
+    services: services
+      .filter((service) => service.professional_id === professional.id)
+      .map((service) => ({
+        id: service.id,
+        name: service.name,
+        duration: `${parseDurationToNumber(String(service.duration || 30))} min`,
+        price: formatPriceFromDatabase(service.price),
+      })),
+    schedule: weeklyRulesToLegacySchedule(weeklyRules),
+    monthlySchedules: buildMonthlySchedulesFromDatabase(weeklyRules, professionalBlocks),
+  };
+};
+
+const mapDatabaseAppointment = (appointment: DatabaseAppointment): Appointment => ({
+  id: appointment.id,
+  clientName: appointment.client_name,
+  phone: appointment.phone || '',
+  professionalId: appointment.professional_id,
+  professionalName: appointment.professionals?.name || appointment.professional_name || '',
+  serviceId: appointment.service_id || '',
+  serviceName: appointment.services?.name || appointment.service_name || '',
+  date: appointment.appointment_date,
+  time: appointment.appointment_time?.slice(0, 5) || '',
+  duration: appointment.services?.duration ? `${appointment.services.duration} min` : '',
+  createdAt: appointment.created_at || '',
+});
+
+const loadAdminStateFromDatabase = async () => {
+  const { data, error } = await supabase
+    .from(APP_STATE_TABLE)
+    .select('config')
+    .eq('id', APP_STATE_ID)
+    .maybeSingle();
+
+  if (error || !data?.config) return null;
+  return data.config as { siteConfig?: SiteConfig };
+};
+
+const saveAdminStateToDatabase = async (siteConfig: SiteConfig) => {
+  await supabase
+    .from(APP_STATE_TABLE)
+    .upsert({
+      id: APP_STATE_ID,
+      config: { siteConfig },
+      updated_at: new Date().toISOString(),
+    });
+};
+
+const loadProfessionalsFromDatabase = async (): Promise<Professional[]> => {
+  const [
+    professionalsResponse,
+    servicesResponse,
+    weeklySchedulesResponse,
+    blocksResponse,
+  ] = await Promise.all([
+    supabase.from('professionals').select('id,name,specialty,status,image').order('created_at', { ascending: true }),
+    supabase.from('services').select('id,professional_id,name,duration,price').order('created_at', { ascending: true }),
+    supabase.from('weekly_schedule').select('professional_id,week_day,enabled,start_time,end_time,lunch_start,lunch_end,interval_minutes'),
+    supabase.from('schedule_blocks').select('id,professional_id,block_date,start_time,end_time,reason'),
+  ]);
+
+  if (professionalsResponse.error) throw professionalsResponse.error;
+
+  const professionals = (professionalsResponse.data || []) as DatabaseProfessional[];
+  const services = (servicesResponse.data || []) as DatabaseService[];
+  const weeklySchedules = (weeklySchedulesResponse.data || []) as DatabaseWeeklySchedule[];
+  const blocks = (blocksResponse.data || []) as DatabaseScheduleBlock[];
+
+  return professionals.map((professional) =>
+    mapDatabaseProfessional(professional, services, weeklySchedules, blocks),
+  );
+};
+
+const loadAppointmentsFromDatabase = async (): Promise<Appointment[]> => {
+  const { data, error } = await supabase
+    .from('appointments')
+    .select(`
+      id,
+      client_name,
+      phone,
+      professional_id,
+      service_id,
+      appointment_date,
+      appointment_time,
+      created_at,
+      professionals(name),
+      services(name,duration)
+    `)
+    .order('appointment_date', { ascending: true })
+    .order('appointment_time', { ascending: true });
+
+  if (error) throw error;
+
+  return ((data || []) as unknown as DatabaseAppointment[]).map(mapDatabaseAppointment);
+};
+
+const saveProfessionalToDatabase = async (
+  data: {
+    name: string;
+    specialty: string;
+    status: 'active' | 'inactive';
+    image: string;
+    imageFile?: File | null;
+    monthlySchedules: MonthlySchedule[];
+    vacation?: VacationPeriod;
+  },
+  editingProfessional: Professional | null,
+) => {
+  const professionalPayload = {
+    name: data.name,
+    specialty: data.specialty,
+    status: toStatusForDatabase(data.status),
+    image: data.image || '',
+  };
+
+  const { data: savedProfessional, error } = editingProfessional
+    ? await supabase
+        .from('professionals')
+        .update(professionalPayload)
+        .eq('id', editingProfessional.id)
+        .select('id')
+        .single()
+    : await supabase
+        .from('professionals')
+        .insert(professionalPayload)
+        .select('id')
+        .single();
+
+  if (error) throw error;
+
+  const professionalId = String(savedProfessional.id);
+  const weeklyRules = data.monthlySchedules[0]?.weeklyRules || createDefaultWeeklyRules();
+
+  await supabase.from('weekly_schedule').delete().eq('professional_id', professionalId);
+
+  const weeklyRows = weekDayOrder.map((day) => {
+    const rule = weeklyRules[day];
+
+    return {
+      professional_id: professionalId,
+      week_day: day,
+      enabled: rule.enabled,
+      start_time: rule.startTime,
+      end_time: rule.endTime,
+      lunch_start: rule.hasLunchBreak ? rule.lunchStartTime || '12:00' : null,
+      lunch_end: rule.hasLunchBreak ? rule.lunchEndTime || '13:00' : null,
+      interval_minutes: rule.intervalMinutes || 30,
+    };
+  });
+
+  const { error: weeklyError } = await supabase.from('weekly_schedule').insert(weeklyRows);
+  if (weeklyError) throw weeklyError;
+
+  await supabase.from('schedule_blocks').delete().eq('professional_id', professionalId);
+
+  const blockRows = (data.monthlySchedules[0]?.blocks || []).map((block) => ({
+    professional_id: professionalId,
+    block_date: block.date,
+    start_time: block.type === 'time-range' ? block.startTime : null,
+    end_time: block.type === 'time-range' ? block.endTime : null,
+    reason: block.reason || null,
+  }));
+
+  if (blockRows.length) {
+    const { error: blocksError } = await supabase.from('schedule_blocks').insert(blockRows);
+    if (blocksError) throw blocksError;
+  }
+
+  return professionalId;
+};
+
+
+const deleteProfessionalFromDatabase = async (professionalId: string | number) => {
+  if (!isValidUuid(professionalId)) return;
+
+  const id = String(professionalId);
+
+  const deletions = [
+    supabase.from('appointments').delete().eq('professional_id', id),
+    supabase.from('services').delete().eq('professional_id', id),
+    supabase.from('weekly_schedule').delete().eq('professional_id', id),
+    supabase.from('schedule_blocks').delete().eq('professional_id', id),
+  ];
+
+  const results = await Promise.all(deletions);
+  const dependencyError = results.find((result) => result.error)?.error;
+  if (dependencyError) throw dependencyError;
+
+  const { error } = await supabase.from('professionals').delete().eq('id', id);
+  if (error) throw error;
+};
+
 
 // ============================================
 // COMPONENTES AUXILIARES
@@ -633,6 +1016,7 @@ const ProfessionalModal = ({
     specialty: string;
     status: 'active' | 'inactive';
     image: string;
+    imageFile?: File | null;
     monthlySchedules: MonthlySchedule[];
     vacation?: VacationPeriod;
   }) => void;
@@ -642,6 +1026,7 @@ const ProfessionalModal = ({
   const [specialty, setSpecialty] = useState(professional?.specialty || '');
   const [status, setStatus] = useState<'active' | 'inactive'>(professional?.status || 'active');
   const [image, setImage] = useState(professional?.image || '');
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [monthlySchedules, setMonthlySchedules] = useState<MonthlySchedule[]>(professional?.monthlySchedules || []);
   const [weeklyRules, setWeeklyRules] = useState<Record<WeekDay, WeeklyRule>>(getInitialWeeklyRules(professional));
   const [vacation, setVacation] = useState<VacationPeriod>(
@@ -659,6 +1044,7 @@ const ProfessionalModal = ({
       specialty,
       status,
       image,
+      imageFile,
       monthlySchedules: buildAutomaticSchedules(weeklyRules, monthlySchedules),
       vacation,
     });
@@ -848,15 +1234,32 @@ const ProfessionalModal = ({
                 <div className="space-y-2.5 sm:space-y-4">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">
-                      URL da imagem
+                      Foto da profissional
                     </label>
-                    <input
-                      type="url"
-                      value={image}
-                      onChange={(e) => setImage(e.target.value)}
-                      placeholder="https://exemplo.com/foto.jpg"
-                      className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100 sm:rounded-lg"
-                    />
+
+                    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <img
+                        src={image || DEFAULT_PROFESSIONAL_IMAGE}
+                        alt={name || 'Foto da profissional'}
+                        className="h-16 w-16 shrink-0 rounded-2xl object-cover"
+                      />
+
+                      <div className="min-w-0 flex-1">
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            setImageFile(file);
+                            if (file) setImage(URL.createObjectURL(file));
+                          }}
+                          className="block w-full text-xs text-gray-600 file:mr-2 file:rounded-full file:border-0 file:bg-pink-500 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-pink-600"
+                        />
+                        <p className="mt-1 text-[11px] text-gray-500">
+                          JPG, PNG ou WEBP. A imagem será salva no Supabase.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 sm:rounded-2xl sm:p-4">
                     <p className="text-xs font-medium text-gray-700 sm:text-sm">Resumo</p>
@@ -1177,6 +1580,9 @@ const Admin = () => {
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultSiteConfig);
   const [siteConfigSaved, setSiteConfigSaved] = useState(false);
   const [adminSection, setAdminSection] = useState<'site' | 'home' | 'professionals' | 'appointments'>('site');
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [databaseMessage, setDatabaseMessage] = useState('');
+
 
   // Filtros para "Por profissional"
   const [professionalDateFilter, setProfessionalDateFilter] = useState<string>('');
@@ -1192,74 +1598,75 @@ const Admin = () => {
   const [createdAtFilter, setCreatedAtFilter] = useState<string>('');
 
   // ============================================
-  // CARREGAR DADOS DO LOCALSTORAGE
+  // CARREGAR DADOS DO BANCO
   // ============================================
 
-  useEffect(() => {
-    const savedData = localStorage.getItem(STORAGE_KEY);
-    if (savedData) {
-      try {
-        setProfessionals(JSON.parse(savedData));
-      } catch {
-        setProfessionals(initialData);
-      }
-    } else {
-      setProfessionals(initialData);
-    }
-  }, []);
-
-  useEffect(() => {
-    const savedConfig = localStorage.getItem(SITE_CONFIG_STORAGE_KEY);
-    if (!savedConfig) return;
-
-    try {
-      setSiteConfig({ ...defaultSiteConfig, ...JSON.parse(savedConfig) });
-    } catch {
+  const loadAdminData = async () => {
+    if (!hasSupabaseConfig) {
+      setProfessionals([]);
+      setAppointments([]);
       setSiteConfig(defaultSiteConfig);
-    }
-  }, []);
-
-  useEffect(() => {
-    const storedAppointments = localStorage.getItem(APPOINTMENT_STORAGE_KEY);
-    if (!storedAppointments) {
-      setAppointments([]);
+      setIsLoadingData(false);
+      setDatabaseMessage('Supabase não configurado. Verifique o arquivo .env.');
       return;
     }
 
     try {
-      setAppointments(JSON.parse(storedAppointments));
-    } catch {
-      setAppointments([]);
-    }
-  }, []);
+      setIsLoadingData(true);
+      setDatabaseMessage('');
 
-  const refreshAppointments = () => {
-    const storedAppointments = localStorage.getItem(APPOINTMENT_STORAGE_KEY);
-    if (!storedAppointments) {
-      setAppointments([]);
-      return;
-    }
+      const [databaseProfessionals, databaseAppointments, databaseState] = await Promise.all([
+        loadProfessionalsFromDatabase(),
+        loadAppointmentsFromDatabase(),
+        loadAdminStateFromDatabase(),
+      ]);
 
-    try {
-      setAppointments(JSON.parse(storedAppointments));
-    } catch {
+      setProfessionals(databaseProfessionals);
+      setAppointments(databaseAppointments);
+      setSiteConfig(databaseState?.siteConfig || defaultSiteConfig);
+    } catch (error) {
+      console.error('Erro ao carregar dados do Supabase:', error);
+      setProfessionals([]);
       setAppointments([]);
+      setSiteConfig(defaultSiteConfig);
+      setDatabaseMessage('Não consegui carregar o banco. Verifique RLS/políticas no Supabase.');
+    } finally {
+      setIsLoadingData(false);
     }
   };
-const handleDeleteAppointment = (appointmentId: string) => {
-  if (!confirm('Tem certeza que deseja excluir este agendamento?')) return;
 
-  const updatedAppointments = appointments.filter(
-    (appointment) => appointment.id !== appointmentId
-  );
+  useEffect(() => {
+    loadAdminData();
+  }, []);
 
-  setAppointments(updatedAppointments);
+  const refreshAppointments = async () => {
+    try {
+      const databaseAppointments = await loadAppointmentsFromDatabase();
+      setAppointments(databaseAppointments);
+      setDatabaseMessage('Agendamentos atualizados.');
+    } catch (error) {
+      console.error('Erro ao atualizar agendamentos:', error);
+      setDatabaseMessage('Erro ao atualizar agendamentos.');
+    }
+  };
 
-  localStorage.setItem(
-    APPOINTMENT_STORAGE_KEY,
-    JSON.stringify(updatedAppointments)
-  );
-};
+  const handleDeleteAppointment = async (appointmentId: string) => {
+    if (!confirm('Tem certeza que deseja excluir este agendamento?')) return;
+
+    const previousAppointments = appointments;
+    const updatedAppointments = appointments.filter((appointment) => appointment.id !== appointmentId);
+    setAppointments(updatedAppointments);
+
+    try {
+      const { error } = await supabase.from('appointments').delete().eq('id', appointmentId);
+      if (error) throw error;
+      setDatabaseMessage('Agendamento excluído.');
+    } catch (error) {
+      console.error('Erro ao excluir agendamento:', error);
+      setAppointments(previousAppointments);
+      setDatabaseMessage('Erro ao excluir agendamento.');
+    }
+  };
   // Funções de filtro
   const clearProfessionalFilters = () => {
     setProfessionalDateFilter('');
@@ -1348,7 +1755,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
     setSiteConfigSaved(false);
   };
 
-  const updateSiteService = (serviceId: number, update: Partial<SiteService>) => {
+  const updateSiteService = (serviceId: string | number, update: Partial<SiteService>) => {
     setSiteConfig((current) => ({
       ...current,
       services: current.services.map((service) =>
@@ -1358,36 +1765,89 @@ const handleDeleteAppointment = (appointmentId: string) => {
     setSiteConfigSaved(false);
   };
 
-  const handleSaveSiteConfig = () => {
-    localStorage.setItem(SITE_CONFIG_STORAGE_KEY, JSON.stringify(siteConfig));
-    setSiteConfigSaved(true);
-    window.setTimeout(() => setSiteConfigSaved(false), 2500);
+  const handleSaveSiteConfig = async () => {
+    try {
+      await saveAdminStateToDatabase(siteConfig);
+      setSiteConfigSaved(true);
+      setDatabaseMessage('Configurações salvas no banco.');
+      window.setTimeout(() => setSiteConfigSaved(false), 2500);
+    } catch (error) {
+      console.error('Erro ao salvar configurações:', error);
+      setDatabaseMessage('Erro ao salvar configurações.');
+    }
   };
 
-  const handleResetSiteConfig = () => {
+  const handleResetSiteConfig = async () => {
     if (!confirm('Tem certeza que deseja restaurar as informações padrão do site?')) return;
+
     setSiteConfig(defaultSiteConfig);
-    localStorage.setItem(SITE_CONFIG_STORAGE_KEY, JSON.stringify(defaultSiteConfig));
-    setSiteConfigSaved(true);
-    window.setTimeout(() => setSiteConfigSaved(false), 2500);
+
+    try {
+      await saveAdminStateToDatabase(defaultSiteConfig);
+      setSiteConfigSaved(true);
+      setDatabaseMessage('Configurações padrão salvas no banco.');
+      window.setTimeout(() => setSiteConfigSaved(false), 2500);
+    } catch (error) {
+      console.error('Erro ao restaurar configurações:', error);
+      setDatabaseMessage('Erro ao restaurar configurações.');
+    }
   };
 
   // ============================================
-  // SALVAR NO LOCALSTORAGE
+  // SINCRONIZAÇÃO COM BANCO
   // ============================================
 
-  const saveToLocalStorage = (data: Professional[]) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  const reloadProfessionals = async () => {
+    const databaseProfessionals = await loadProfessionalsFromDatabase();
+    setProfessionals(databaseProfessionals);
   };
 
   // ============================================
   // RESETAR PARA DADOS PADRÃO
   // ============================================
 
-  const handleResetToDefault = () => {
-    if (confirm('Tem certeza que deseja restaurar os dados padrão? Todos as alterações serão perdidas.')) {
-      localStorage.removeItem(STORAGE_KEY);
-      setProfessionals(initialData);
+  const handleResetToDefault = async () => {
+    if (!confirm('Tem certeza que deseja restaurar os dados padrão? Todos as alterações serão perdidas.')) return;
+
+    try {
+      await supabase.from('professionals').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+      for (const professional of initialData) {
+        const monthlySchedules = buildAutomaticSchedules(
+          getInitialWeeklyRules(professional),
+          professional.monthlySchedules || [],
+        );
+
+        const professionalId = await saveProfessionalToDatabase(
+          {
+            name: professional.name,
+            specialty: professional.specialty,
+            status: professional.status,
+            image: professional.image,
+            monthlySchedules,
+          },
+          null,
+        );
+
+        if (professional.services.length) {
+          const serviceRows = professional.services.map((service) => ({
+            professional_id: professionalId,
+            name: service.name,
+            duration: parseDurationToNumber(service.duration),
+            price: parsePriceToNumber(service.price),
+          }));
+
+          await supabase.from('services').insert(serviceRows);
+        }
+      }
+
+      await reloadProfessionals();
+      setSelectedProfessional(null);
+      setDatabaseMessage('Dados padrão restaurados no banco.');
+    } catch (error) {
+      console.error('Erro ao restaurar dados padrão:', error);
+      setProfessionals([]);
+      setDatabaseMessage('Erro ao restaurar dados padrão.');
     }
   };
 
@@ -1406,46 +1866,52 @@ const handleDeleteAppointment = (appointmentId: string) => {
     setShowProfessionalModal(true);
   };
 
-  const handleSaveProfessional = (data: {
+  const handleSaveProfessional = async (data: {
     name: string;
     specialty: string;
     status: 'active' | 'inactive';
     image: string;
+    imageFile?: File | null;
     monthlySchedules: MonthlySchedule[];
     vacation?: VacationPeriod;
   }) => {
-    let updatedProfessionals: Professional[];
-    
-    if (editingProfessional) {
-      // Editar profissional existente
-      updatedProfessionals = professionals.map((p) =>
-        p.id === editingProfessional.id
-          ? { ...p, ...data }
-          : p
+    try {
+      const imageUrl = data.imageFile ? await uploadProfessionalImage(data.imageFile) : data.image;
+
+      await saveProfessionalToDatabase(
+        {
+          ...data,
+          image: imageUrl,
+        },
+        editingProfessional,
       );
-    } else {
-      // Criar nova profissional
-      const newId = Math.max(...professionals.map((p) => p.id), 0) + 1;
-      updatedProfessionals = [
-        ...professionals,
-        { id: newId, ...data, services: [] },
-      ];
+      await reloadProfessionals();
+
+      setShowProfessionalModal(false);
+      setEditingProfessional(null);
+      setDatabaseMessage('Profissional salva no banco.');
+    } catch (error) {
+      console.error('Erro ao salvar profissional/imagem:', error);
+      setDatabaseMessage('Erro ao salvar profissional/imagem.');
     }
-    
-    setProfessionals(updatedProfessionals);
-    saveToLocalStorage(updatedProfessionals);
-    setShowProfessionalModal(false);
-    setEditingProfessional(null);
   };
 
-  const handleDeleteProfessional = (id: number) => {
-    if (confirm('Tem certeza que deseja excluir esta profissional?')) {
-      const updatedProfessionals = professionals.filter((p) => p.id !== id);
-      setProfessionals(updatedProfessionals);
-      saveToLocalStorage(updatedProfessionals);
-      if (selectedProfessional?.id === id) {
-        setSelectedProfessional(null);
-      }
+  const handleDeleteProfessional = async (id: string | number) => {
+    if (!confirm('Tem certeza que deseja excluir esta profissional?')) return;
+
+    const previousProfessionals = professionals;
+    setProfessionals((current) => current.filter((professional) => String(professional.id) !== String(id)));
+
+    try {
+      await deleteProfessionalFromDatabase(id);
+
+      if (String(selectedProfessional?.id) === String(id)) setSelectedProfessional(null);
+      await refreshAppointments();
+      setDatabaseMessage(isValidUuid(id) ? 'Profissional excluída do banco.' : 'Profissional antiga removida da tela. Recarregue para usar apenas o Supabase.');
+    } catch (error) {
+      console.error('Erro ao excluir profissional:', error);
+      setProfessionals(previousProfessionals);
+      setDatabaseMessage('Erro ao excluir profissional. Verifique permissões/RLS no Supabase.');
     }
   };
 
@@ -1453,7 +1919,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
   // HANDLERS - SERVIÇOS
   // ============================================
 
-  const handleAddService = (professionalId: number) => {
+  const handleAddService = (professionalId: string | number) => {
     const professional = professionals.find((p) => p.id === professionalId);
     if (professional) {
       setSelectedProfessional(professional);
@@ -1467,56 +1933,62 @@ const handleDeleteAppointment = (appointmentId: string) => {
     setShowServiceModal(true);
   };
 
-  const handleSaveService = (data: { name: string; duration: string; price: string }) => {
-    
+  const handleSaveService = async (data: { name: string; duration: string; price: string }) => {
     if (!selectedProfessional) return;
 
-    let updatedProfessionals: Professional[];
+    try {
+      const payload = {
+        professional_id: String(selectedProfessional.id),
+        name: data.name,
+        duration: parseDurationToNumber(data.duration),
+        price: parsePriceToNumber(data.price),
+      };
 
-    if (editingService) {
-      // Editar serviço existente
-      updatedProfessionals = professionals.map((p) =>
-        p.id === selectedProfessional.id
-          ? {
-              ...p,
-              services: p.services.map((s) =>
-                s.id === editingService.id ? { ...s, ...data } : s
-              ),
-            }
-          : p
-      );
-    } else {
-      // Criar novo serviço
-      const newId = Math.max(0, ...professionals.flatMap((p) => p.services.map((s) => s.id))) + 1;
-      updatedProfessionals = professionals.map((p) =>
-        p.id === selectedProfessional.id
-          ? { ...p, services: [...p.services, { id: newId, ...data }] }
-          : p
-      );
+      const { error } = editingService
+        ? await supabase.from('services').update(payload).eq('id', editingService.id)
+        : await supabase.from('services').insert(payload);
+
+      if (error) throw error;
+
+      await reloadProfessionals();
+
+      setShowServiceModal(false);
+      setEditingService(null);
+      setDatabaseMessage('Serviço salvo no banco.');
+    } catch (error) {
+      console.error('Erro ao salvar serviço:', error);
+      setDatabaseMessage('Erro ao salvar serviço.');
     }
-    
-    setProfessionals(updatedProfessionals);
-    saveToLocalStorage(updatedProfessionals);
-    setShowServiceModal(false);
-    setEditingService(null);
   };
 
-  const handleDeleteService = (serviceId: number) => {
+  const handleDeleteService = async (serviceId: string | number) => {
     if (!selectedProfessional) return;
-    if (confirm('Tem certeza que deseja excluir este serviço?')) {
-      const updatedProfessionals = professionals.map((p) =>
-        p.id === selectedProfessional.id
-          ? { ...p, services: p.services.filter((s) => s.id !== serviceId) }
-          : p
-      );
-      setProfessionals(updatedProfessionals);
-      saveToLocalStorage(updatedProfessionals);
+    if (!confirm('Tem certeza que deseja excluir este serviço?')) return;
+
+    const previousProfessionals = professionals;
+    const updatedProfessionals = professionals.map((p) =>
+      String(p.id) === String(selectedProfessional.id)
+        ? { ...p, services: p.services.filter((s) => String(s.id) !== String(serviceId)) }
+        : p,
+    );
+    setProfessionals(updatedProfessionals);
+
+    try {
+      const { error } = await supabase.from('services').delete().eq('id', serviceId);
+      if (error) throw error;
+
+      await reloadProfessionals();
+      setDatabaseMessage('Serviço excluído do banco.');
+    } catch (error) {
+      console.error('Erro ao excluir serviço:', error);
+      setProfessionals(previousProfessionals);
+      setDatabaseMessage('Erro ao excluir serviço.');
     }
   };
 
   const getServiceDuration = (appointment: Appointment) => {
-    const professional = professionals.find((p) => p.id === appointment.professionalId);
-    const service = professional?.services.find((s) => s.id === appointment.serviceId);
+    const professional = professionals.find((p) => String(p.id) === String(appointment.professionalId));
+    const service = professional?.services.find((s) => String(s.id) === String(appointment.serviceId));
     return service?.duration ?? appointment.duration ?? '-';
   };
 
@@ -1584,6 +2056,18 @@ const handleDeleteAppointment = (appointmentId: string) => {
           </div>
         </div>
       </div>
+
+      {(isLoadingData || databaseMessage) && (
+        <div className="mx-auto max-w-7xl px-3 pt-3 sm:px-6 lg:px-8">
+          <div className={`rounded-2xl border p-3 text-xs sm:text-sm ${
+            databaseMessage.includes('Erro') || databaseMessage.includes('Não consegui')
+              ? 'border-red-100 bg-red-50 text-red-700'
+              : 'border-pink-100 bg-pink-50 text-pink-700'
+          }`}>
+            {isLoadingData ? 'Carregando dados do banco...' : databaseMessage}
+          </div>
+        </div>
+      )}
 
 
       {/* Configurações do Site */}
@@ -1805,8 +2289,14 @@ const handleDeleteAppointment = (appointmentId: string) => {
               className="w-full overflow-hidden rounded-2xl bg-white p-3.5 shadow-sm sm:rounded-xl sm:p-6"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
+                <div className="flex min-w-0 flex-1 gap-3">
+                  <img
+                    src={professional.image || DEFAULT_PROFESSIONAL_IMAGE}
+                    alt={professional.name}
+                    className="h-14 w-14 shrink-0 rounded-2xl object-cover"
+                  />
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
                     <h3 className="text-base font-semibold text-gray-800 sm:text-lg">
                       {professional.name}
                     </h3>
@@ -1832,6 +2322,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
                       ? formatMonthlyScheduleSummary(professional.monthlySchedules)
                       : formatScheduleSummary(professional.schedule)}
                   </p>
+                  </div>
                 </div>
                 <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
                   <button
@@ -1858,7 +2349,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
               </div>
 
               {/* Serviços da Profissional Selecionada */}
-              {selectedProfessional?.id === professional.id && (
+              {String(selectedProfessional?.id) === String(professional.id) && (
                 <div className="mt-4 border-t pt-4">
                   <div className="mb-3 flex flex-col gap-2">
                     <h4 className="text-sm font-semibold text-gray-700">
@@ -2003,7 +2494,7 @@ const handleDeleteAppointment = (appointmentId: string) => {
               ) : (
                 professionals.map((professional) => {
                   const professionalAppointments = getFilteredAppointmentsByDate(professionalDateFilter).filter(
-                    (appointment) => appointment.professionalId === professional.id,
+                    (appointment) => String(appointment.professionalId) === String(professional.id),
                   );
 
                   return (

@@ -1,4 +1,6 @@
 ﻿import { useState, useEffect } from 'react';
+import { supabase } from '../services/supabase';
+import { MonthlySchedule, ScheduleBlock, WeeklyRule, WeekDay } from '../components/schedule/types';
 import Navbar from '../components/common/Navbar';
 import Button from '../components/common/Button';
 import ProfessionalCard from '../components/common/ProfessionalCard';
@@ -6,23 +8,52 @@ import Footer from '../components/common/Footer';
 import BookingModal from '../components/booking/BookingModal';
 
 interface Service {
-  id: number;
+  id: string | number;
   name: string;
   duration: string;
   price: string;
 }
 
+interface DaySchedule {
+  enabled: boolean;
+  startTime: string;
+  endTime: string;
+  intervalMinutes?: 30 | 60;
+  hasLunchBreak?: boolean;
+  lunchStartTime?: string;
+  lunchEndTime?: string;
+}
+
+interface WorkSchedule {
+  monday: DaySchedule;
+  tuesday: DaySchedule;
+  wednesday: DaySchedule;
+  thursday: DaySchedule;
+  friday: DaySchedule;
+  saturday: DaySchedule;
+  sunday: DaySchedule;
+}
+
+interface VacationPeriod {
+  enabled: boolean;
+  startDate: string;
+  endDate: string;
+}
+
 interface Professional {
-  id: number;
+  id: string | number;
   name: string;
   specialty: string;
   status: 'active' | 'inactive';
   image: string;
   services: Service[];
+  schedule?: WorkSchedule;
+  monthlySchedules?: MonthlySchedule[];
+  vacation?: VacationPeriod;
 }
 
 interface SiteService {
-  id: number;
+  id: string | number;
   name: string;
   description: string;
 }
@@ -38,8 +69,6 @@ interface SiteConfig {
   services: SiteService[];
 }
 
-const STORAGE_KEY = 'elegance_space_professionals';
-const SITE_CONFIG_STORAGE_KEY = 'elegance_space_site_config';
 
 const defaultSiteConfig: SiteConfig = {
   siteName: 'Elegance Space',
@@ -104,38 +133,216 @@ const defaultProfessionals: Professional[] = [
   },
 ];
 
-const loadSiteConfig = (): SiteConfig => {
-  const savedConfig = localStorage.getItem(SITE_CONFIG_STORAGE_KEY);
-  if (!savedConfig) return defaultSiteConfig;
 
-  try {
-    return { ...defaultSiteConfig, ...JSON.parse(savedConfig) };
-  } catch {
-    return defaultSiteConfig;
-  }
+const APP_STATE_TABLE = 'site_config';
+const APP_STATE_ID = 'elegance-space-admin-state';
+const DEFAULT_PROFESSIONAL_IMAGE = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=500&fit=crop';
+
+type DatabaseProfessional = {
+  id: string;
+  name: string;
+  specialty: string | null;
+  status: string | null;
+  image: string | null;
 };
+
+type DatabaseService = {
+  id: string;
+  professional_id: string;
+  name: string;
+  duration: number | string | null;
+  price: number | string | null;
+};
+
+type DatabaseWeeklySchedule = {
+  professional_id: string;
+  week_day: WeekDay;
+  enabled: boolean | null;
+  start_time: string | null;
+  end_time: string | null;
+  lunch_start: string | null;
+  lunch_end: string | null;
+  interval_minutes: number | null;
+};
+
+type DatabaseScheduleBlock = {
+  id: string;
+  professional_id: string;
+  block_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  reason: string | null;
+};
+
+const fallbackImages = defaultProfessionals.map((professional) => professional.image);
+
+const createDefaultWeeklyRules = (): Record<WeekDay, WeeklyRule> => ({
+  monday: { enabled: false, startTime: '08:00', endTime: '18:00', intervalMinutes: 30, hasLunchBreak: false, lunchStartTime: '12:00', lunchEndTime: '13:00' },
+  tuesday: { enabled: false, startTime: '08:00', endTime: '18:00', intervalMinutes: 30, hasLunchBreak: false, lunchStartTime: '12:00', lunchEndTime: '13:00' },
+  wednesday: { enabled: false, startTime: '08:00', endTime: '18:00', intervalMinutes: 30, hasLunchBreak: false, lunchStartTime: '12:00', lunchEndTime: '13:00' },
+  thursday: { enabled: false, startTime: '08:00', endTime: '18:00', intervalMinutes: 30, hasLunchBreak: false, lunchStartTime: '12:00', lunchEndTime: '13:00' },
+  friday: { enabled: false, startTime: '08:00', endTime: '18:00', intervalMinutes: 30, hasLunchBreak: false, lunchStartTime: '12:00', lunchEndTime: '13:00' },
+  saturday: { enabled: false, startTime: '09:00', endTime: '14:00', intervalMinutes: 30, hasLunchBreak: false, lunchStartTime: '12:00', lunchEndTime: '13:00' },
+  sunday: { enabled: false, startTime: '09:00', endTime: '14:00', intervalMinutes: 30, hasLunchBreak: false, lunchStartTime: '12:00', lunchEndTime: '13:00' },
+});
+
+const getCurrentMonthYear = () => new Date().toISOString().slice(0, 7);
+
+const weeklyRulesToSchedule = (rules: Record<WeekDay, WeeklyRule>): WorkSchedule => ({
+  monday: rules.monday,
+  tuesday: rules.tuesday,
+  wednesday: rules.wednesday,
+  thursday: rules.thursday,
+  friday: rules.friday,
+  saturday: rules.saturday,
+  sunday: rules.sunday,
+});
+
+const formatPriceFromDatabase = (price: number | string | null) => {
+  if (price === null || price === undefined || price === '') return '';
+  if (typeof price === 'number') {
+    return price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+  return price.startsWith('R$') ? price : price;
+};
+
+const parseDurationToNumber = (duration: number | string | null) => {
+  const value = Number(String(duration || 30).replace(/\D/g, ''));
+  return Number.isFinite(value) && value > 0 ? value : 30;
+};
+
+const mapStatus = (status?: string | null): 'active' | 'inactive' => {
+  const normalized = String(status || 'active').toLowerCase();
+  return normalized === 'inactive' || normalized === 'inativo' ? 'inactive' : 'active';
+};
+
+const mapDatabaseProfessional = (
+  professional: DatabaseProfessional,
+  services: DatabaseService[],
+  weeklySchedules: DatabaseWeeklySchedule[],
+  blocks: DatabaseScheduleBlock[],
+  index: number,
+): Professional => {
+  const weeklyRules = createDefaultWeeklyRules();
+
+  weeklySchedules
+    .filter((rule) => rule.professional_id === professional.id)
+    .forEach((rule) => {
+      if (!rule.week_day || !weeklyRules[rule.week_day]) return;
+
+      weeklyRules[rule.week_day] = {
+        ...weeklyRules[rule.week_day],
+        enabled: Boolean(rule.enabled),
+        startTime: rule.start_time?.slice(0, 5) || weeklyRules[rule.week_day].startTime,
+        endTime: rule.end_time?.slice(0, 5) || weeklyRules[rule.week_day].endTime,
+        intervalMinutes: (rule.interval_minutes === 60 ? 60 : 30) as 30 | 60,
+        hasLunchBreak: Boolean(rule.lunch_start && rule.lunch_end),
+        lunchStartTime: rule.lunch_start?.slice(0, 5) || '12:00',
+        lunchEndTime: rule.lunch_end?.slice(0, 5) || '13:00',
+      };
+    });
+
+  const scheduleBlocks: ScheduleBlock[] = blocks
+    .filter((block) => block.professional_id === professional.id)
+    .map((block) => ({
+      id: block.id,
+      date: block.block_date,
+      type: block.start_time && block.end_time ? 'time-range' : 'full-day',
+      startTime: block.start_time?.slice(0, 5) || '',
+      endTime: block.end_time?.slice(0, 5) || '',
+      reason: block.reason || '',
+    }));
+
+  return {
+    id: professional.id,
+    name: professional.name,
+    specialty: professional.specialty || '',
+    status: mapStatus(professional.status),
+    image: professional.image || fallbackImages[index % fallbackImages.length] || DEFAULT_PROFESSIONAL_IMAGE,
+    services: services
+      .filter((service) => service.professional_id === professional.id)
+      .map((service) => ({
+        id: service.id,
+        name: service.name,
+        duration: `${parseDurationToNumber(service.duration)} min`,
+        price: formatPriceFromDatabase(service.price),
+      })),
+    schedule: weeklyRulesToSchedule(weeklyRules),
+    monthlySchedules: [
+      {
+        monthYear: getCurrentMonthYear(),
+        weeklyRules,
+        blocks: scheduleBlocks,
+        released: true,
+      },
+    ],
+  };
+};
+
+const loadProfessionalsFromDatabase = async (): Promise<Professional[]> => {
+  const [
+    professionalsResponse,
+    servicesResponse,
+    weeklyResponse,
+    blocksResponse,
+  ] = await Promise.all([
+    supabase.from('professionals').select('id,name,specialty,status,image').eq('status', 'active').order('created_at', { ascending: true }),
+    supabase.from('services').select('id,professional_id,name,duration,price').order('created_at', { ascending: true }),
+    supabase.from('weekly_schedule').select('professional_id,week_day,enabled,start_time,end_time,lunch_start,lunch_end,interval_minutes'),
+    supabase.from('schedule_blocks').select('id,professional_id,block_date,start_time,end_time,reason'),
+  ]);
+
+  if (professionalsResponse.error) throw professionalsResponse.error;
+
+  const professionals = (professionalsResponse.data || []) as DatabaseProfessional[];
+  const services = (servicesResponse.data || []) as DatabaseService[];
+  const weeklySchedules = (weeklyResponse.data || []) as DatabaseWeeklySchedule[];
+  const blocks = (blocksResponse.data || []) as DatabaseScheduleBlock[];
+
+  return professionals.map((professional, index) =>
+    mapDatabaseProfessional(professional, services, weeklySchedules, blocks, index),
+  );
+};
+
+const loadSiteConfigFromDatabase = async (): Promise<SiteConfig> => {
+  const { data, error } = await supabase
+    .from(APP_STATE_TABLE)
+    .select('config')
+    .eq('id', APP_STATE_ID)
+    .maybeSingle();
+
+  if (error || !data?.config) return defaultSiteConfig;
+
+  const state = data.config as { siteConfig?: SiteConfig };
+  return state.siteConfig ? { ...defaultSiteConfig, ...state.siteConfig } : defaultSiteConfig;
+};
+
 
 const Home = () => {
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultSiteConfig);
   const [bookingOpen, setBookingOpen] = useState(false);
-  const [bookingProfessionalId, setBookingProfessionalId] = useState<number | null>(null);
+  const [bookingProfessionalId, setBookingProfessionalId] = useState<string | number | null>(null);
   const [bookingToast, setBookingToast] = useState('');
 
   useEffect(() => {
-    const savedData = localStorage.getItem(STORAGE_KEY);
-    if (savedData) {
+    const loadData = async () => {
       try {
-        const parsed = JSON.parse(savedData);
-        setProfessionals(parsed.filter((p: Professional) => p.status === 'active'));
-      } catch {
-        setProfessionals(defaultProfessionals.filter((p) => p.status === 'active'));
-      }
-    } else {
-      setProfessionals(defaultProfessionals.filter((p) => p.status === 'active'));
-    }
+        const [databaseProfessionals, databaseSiteConfig] = await Promise.all([
+          loadProfessionalsFromDatabase(),
+          loadSiteConfigFromDatabase(),
+        ]);
 
-    setSiteConfig(loadSiteConfig());
+        setProfessionals(databaseProfessionals);
+        setSiteConfig(databaseSiteConfig);
+      } catch (error) {
+        console.error('Erro ao carregar dados do Supabase:', error);
+        setProfessionals([]);
+        setSiteConfig(defaultSiteConfig);
+      }
+    };
+
+    loadData();
   }, []);
 
   const handleNavigate = (sectionId: string) => {
@@ -148,7 +355,7 @@ const Home = () => {
     document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleViewSchedule = (professionalId: number) => {
+  const handleViewSchedule = (professionalId: string | number) => {
     setBookingProfessionalId(professionalId);
     setBookingOpen(true);
   };
@@ -252,8 +459,8 @@ const Home = () => {
             {professionals.map((professional) => (
               <ProfessionalCard
                 key={professional.id}
-                professional={professional}
-                onViewSchedule={handleViewSchedule}
+                professional={professional as any}
+                onViewSchedule={handleViewSchedule as any}
               />
             ))}
           </div>

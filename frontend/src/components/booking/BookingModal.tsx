@@ -1,8 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { supabase } from '../../services/supabase';
 import { MonthlySchedule } from '../schedule/types';
 
 interface Service {
-  id: number;
+  id: string | number;
   name: string;
   duration: string;
   price: string;
@@ -35,7 +36,7 @@ interface VacationPeriod {
 }
 
 export interface Professional {
-  id: number;
+  id: string | number;
   name: string;
   specialty: string;
   status: 'active' | 'inactive';
@@ -50,9 +51,9 @@ interface Appointment {
   id: string;
   clientName: string;
   phone: string;
-  professionalId: number;
+  professionalId: string | number;
   professionalName: string;
-  serviceId: number;
+  serviceId: string | number;
   serviceName: string;
   date: string;
   time: string;
@@ -63,12 +64,11 @@ interface Appointment {
 interface BookingModalProps {
   isOpen: boolean;
   professionals: Professional[];
-  initialProfessionalId?: number | null;
+  initialProfessionalId?: string | number | null;
   onClose: () => void;
   onSuccess?: (appointment: Appointment) => void;
 }
 
-const APPOINTMENT_STORAGE_KEY = 'elegance_space_appointments';
 
 const weekdayFromIndex = [
   'sunday',
@@ -200,22 +200,59 @@ const buildScheduleFromWork = (
   released: true,
 });
 
-const loadAppointments = (): Appointment[] => {
-  if (typeof window === 'undefined') return [];
 
-  const raw = localStorage.getItem(APPOINTMENT_STORAGE_KEY);
-  if (!raw) return [];
-
-  try {
-    return JSON.parse(raw) as Appointment[];
-  } catch {
-    return [];
-  }
+type DatabaseAppointment = {
+  id: string;
+  client_name: string;
+  phone: string | null;
+  professional_id: string;
+  professional_name?: string | null;
+  service_id: string | null;
+  service_name?: string | null;
+  appointment_date: string;
+  appointment_time: string;
+  created_at?: string | null;
+  professionals?: { name: string | null } | null;
+  services?: { name: string | null; duration: number | string | null } | null;
 };
 
-const saveAppointments = (appointments: Appointment[]) => {
-  localStorage.setItem(APPOINTMENT_STORAGE_KEY, JSON.stringify(appointments));
+const mapDatabaseAppointment = (appointment: DatabaseAppointment): Appointment => ({
+  id: appointment.id,
+  clientName: appointment.client_name,
+  phone: appointment.phone || '',
+  professionalId: appointment.professional_id,
+  professionalName: appointment.professionals?.name || appointment.professional_name || '',
+  serviceId: appointment.service_id || '',
+  serviceName: appointment.services?.name || appointment.service_name || '',
+  date: appointment.appointment_date,
+  time: appointment.appointment_time?.slice(0, 5) || '',
+  duration: appointment.services?.duration ? `${appointment.services.duration} min` : '',
+  createdAt: appointment.created_at || '',
+});
+
+const loadAppointmentsFromDatabase = async (): Promise<Appointment[]> => {
+  const { data, error } = await supabase
+    .from('appointments')
+    .select(`
+      id,
+      client_name,
+      phone,
+      professional_id,
+      service_id,
+      appointment_date,
+      appointment_time,
+      created_at,
+      professionals(name),
+      services(name,duration)
+    `)
+    .order('appointment_date', { ascending: true })
+    .order('appointment_time', { ascending: true });
+
+  if (error) throw error;
+
+  return ((data || []) as unknown as DatabaseAppointment[]).map(mapDatabaseAppointment);
 };
+
 
 const getRollingAvailableDates = () => {
   const today = new Date();
@@ -325,7 +362,7 @@ const getAvailableTimeSlots = (
   selectedDate: string,
   durationMinutes: number,
   appointments: Appointment[],
-  professionalId: number,
+  professionalId: string | number,
   vacation?: VacationPeriod,
 ) => {
   if (!selectedDate || !schedule) return [];
@@ -450,21 +487,23 @@ const BookingModal = ({
     )}-${numbers.slice(7, 11)}`;
   };
 
-  const [professionalId, setProfessionalId] = useState<number>(
-    initialProfessionalId ?? professionals[0]?.id ?? 0,
+  const [professionalId, setProfessionalId] = useState<string | number>(
+    initialProfessionalId ?? professionals[0]?.id ?? '',
   );
 
-  const [serviceId, setServiceId] = useState<number>(
-    professionals[0]?.services[0]?.id ?? 0,
+  const [serviceId, setServiceId] = useState<string | number>(
+    professionals[0]?.services[0]?.id ?? '',
   );
 
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [error, setError] = useState('');
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   const selectedProfessional = useMemo(
     () =>
-      professionals.find((professional) => professional.id === professionalId) ??
+      professionals.find((professional) => String(professional.id) === String(professionalId)) ??
       professionals[0],
     [professionalId, professionals],
   );
@@ -475,8 +514,24 @@ const BookingModal = ({
   );
 
   const selectedService = selectedProfessional?.services.find(
-    (service) => service.id === serviceId,
+    (service) => String(service.id) === String(serviceId),
   );
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const loadAppointments = async () => {
+      try {
+        setAppointments(await loadAppointmentsFromDatabase());
+      } catch (error) {
+        console.error('Erro ao carregar agendamentos:', error);
+        setAppointments([]);
+      }
+    };
+
+    loadAppointments();
+  }, [isOpen]);
+
 
   const availableDates = useMemo(() => {
     if (!selectedSchedule || !selectedProfessional || !selectedService) {
@@ -484,8 +539,6 @@ const BookingModal = ({
     }
 
     const duration = parseDurationMinutes(selectedService.duration);
-    const appointments = loadAppointments();
-
     return getAvailableDates(
       selectedSchedule,
       selectedProfessional.vacation,
@@ -507,7 +560,7 @@ const BookingModal = ({
         reason: slots.length > 0 ? item.reason : 'Sem horários disponíveis',
       };
     });
-  }, [selectedSchedule, selectedProfessional, selectedService]);
+  }, [selectedSchedule, selectedProfessional, selectedService, appointments]);
 
   const appointmentSlots = useMemo(() => {
     const duration = parseDurationMinutes(selectedService?.duration ?? '60');
@@ -517,12 +570,12 @@ const BookingModal = ({
           selectedSchedule,
           selectedDate,
           duration,
-          loadAppointments(),
-          selectedProfessional?.id ?? 0,
+          appointments,
+          selectedProfessional?.id ?? '',
           selectedProfessional?.vacation,
         )
       : [];
-  }, [selectedSchedule, selectedDate, selectedService, selectedProfessional]);
+  }, [selectedSchedule, selectedDate, selectedService, selectedProfessional, appointments]);
 
   useEffect(() => {
     if (!isOpen || !selectedProfessional) return;
@@ -530,7 +583,7 @@ const BookingModal = ({
     const service = selectedProfessional.services[0];
 
     setProfessionalId(initialProfessionalId ?? selectedProfessional.id);
-    setServiceId(service?.id ?? 0);
+    setServiceId(service?.id ?? '');
     setSelectedDate('');
     setSelectedTime('');
     setClientName('');
@@ -539,21 +592,21 @@ const BookingModal = ({
   }, [isOpen, initialProfessionalId, selectedProfessional]);
 
   const handleProfessionalChange = (value: string) => {
-    const id = Number(value);
-    const professional = professionals.find((item) => item.id === id);
+    const id = value;
+    const professional = professionals.find((item) => String(item.id) === String(id));
 
     if (!professional) return;
 
     const service = professional.services[0];
 
     setProfessionalId(id);
-    setServiceId(service?.id ?? 0);
+    setServiceId(service?.id ?? '');
     setSelectedDate('');
     setSelectedTime('');
     setError('');
   };
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError('');
 
@@ -570,7 +623,6 @@ const BookingModal = ({
     }
 
     const duration = parseDurationMinutes(selectedService.duration);
-    const appointments = loadAppointments();
     const selectedStart = toMinutes(selectedTime);
     const selectedEnd = selectedStart + duration;
 
@@ -617,16 +669,45 @@ const BookingModal = ({
       createdAt: new Date().toISOString(),
     };
 
-    const updatedAppointments = [...appointments, newBooking];
+    try {
+      setIsSaving(true);
 
-    saveAppointments(updatedAppointments);
-    setError('');
-    setClientName('');
-    setPhone('');
-    setSelectedDate('');
-    setSelectedTime('');
-    onSuccess?.(newBooking);
-    onClose();
+      const { data, error: insertError } = await supabase
+        .from('appointments')
+        .insert({
+          client_name: newBooking.clientName,
+          phone: newBooking.phone,
+          professional_id: String(newBooking.professionalId),
+          service_id: String(newBooking.serviceId),
+          appointment_date: newBooking.date,
+          appointment_time: newBooking.time,
+          status: 'Agendado',
+        })
+        .select('id,created_at')
+        .single();
+
+      if (insertError) throw insertError;
+
+      const savedBooking = {
+        ...newBooking,
+        id: data?.id || newBooking.id,
+        createdAt: data?.created_at || newBooking.createdAt,
+      };
+
+      setAppointments((current) => [...current, savedBooking]);
+      setError('');
+      setClientName('');
+      setPhone('');
+      setSelectedDate('');
+      setSelectedTime('');
+      onSuccess?.(savedBooking);
+      onClose();
+    } catch (error) {
+      console.error('Erro ao salvar agendamento:', error);
+      setError('Não consegui salvar o agendamento. Verifique a conexão com o banco.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const availableCount = availableDates.filter((item) => item.available).length;
@@ -719,7 +800,7 @@ const BookingModal = ({
 
                     <div className="grid gap-2">
                       {professionals.map((professional) => {
-                        const isSelected = professional.id === professionalId;
+                        const isSelected = String(professional.id) === String(professionalId);
 
                         return (
                           <button
@@ -765,7 +846,7 @@ const BookingModal = ({
 
                     <div className="grid gap-2">
                       {selectedProfessional?.services.map((service) => {
-                        const isSelected = service.id === serviceId;
+                        const isSelected = String(service.id) === String(serviceId);
 
                         return (
                           <button
@@ -961,9 +1042,10 @@ const BookingModal = ({
             <button
               type="submit"
               form="booking-form"
-              className="w-full rounded-full bg-pink-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-200 transition hover:bg-pink-600 sm:w-auto"
+              disabled={isSaving}
+              className="w-full rounded-full bg-pink-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-200 transition hover:bg-pink-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
-              Confirmar agendamento
+{isSaving ? 'Salvando...' : 'Confirmar agendamento'}
             </button>
           </div>
         </div>
